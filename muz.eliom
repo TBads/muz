@@ -2,12 +2,22 @@
   open Eliom_lib
   open Eliom_content
   open Html5.D
+  open Eliom_parameter
 }}
 
+(*
 type user = {
   username : string option;
   email: string option;
+  verified : bool option;
 }
+*)
+
+open Db_funs
+
+let user_info =
+  Eliom_reference.Volatile.eref ~scope:Eliom_common.default_session_scope ~secure:true
+    {username = None; email = None; verified = None}
 
 module Config =
   struct
@@ -36,6 +46,14 @@ let new_acct_db_service =
                                                 string "new_password" **
                                                 string "verify_new_password") ()
 
+(* Login Page Service *)
+let login_service =
+  Eliom_service.Http.service ~path:["login"] ~get_params:Eliom_parameter.unit ()
+
+(* Logout Page Service *)
+let logout_service =
+  Eliom_service.Http.service ~path:["logout"] ~get_params:Eliom_parameter.unit ()
+
 (*** Page Elements ***)
 
 (* Bootstrap CDN link *)
@@ -50,8 +68,31 @@ let font_awesome_cdn_link =
       link ~rel:[`Stylesheet] ~href:(Xml.uri_of_string cdn_link)
         ()
 
+let new_account_button (u : user) =
+  match u.verified with
+  | Some true -> div []
+  | _ ->
+      div ~a:[a_class ["btn btn-default btn-lg"]; a_id "header_button"]
+      [a new_account_service [pcdata "Register New Account"] ()
+      ]
+
+let login_button =
+  div ~a:[a_class ["btn btn-default btn-lg"]; a_id "header_button"]
+  [a login_service [pcdata "Login"] ()
+  ]
+
+let logout_button =
+  div ~a:[a_class ["btn btn-default btn-lg"]; a_id "header_button"]
+  [a logout_service [pcdata "Logout"] ()
+  ]
+
+let login_logout_button (u : user) =
+  match u.verified with
+  | Some true -> logout_button
+  | _ -> login_button
+
 let new_account_form =
-  Eliom_content.Html5.F.post_form ~service:new_acct_db_service ~port:Config.
+  Eliom_content.Html5.F.post_form ~service:new_acct_db_service ~port:Config.port
   (
     fun (new_username, (new_email, (new_password, verify_new_password))) ->
       [div ~a:[a_style "width: 600px; margin: auto"]
@@ -116,18 +157,12 @@ let new_account_form =
 let header_navbar_skeleton ?(on_page = `Null) (u : user) =
   let b1 = if on_page = `NewAccount then [] else [new_account_button u] in
   let b2 = if on_page = `Login then [] else [login_logout_button u] in
-  let b3 = if on_page = `OrderHistory then [] else [order_history_button u] in
-  (*let b4 = if on_page = `Trade then [] else [trade_button u] in*)
-  let b5 = if on_page = `FAQ then [] else [faq_button] in
   let btns =
     match on_page with
-    | `NewAccount -> b2 @ b5
-    | `Login -> b1 @ b5
-    | `OrderHistory -> b2 @ b5
-    | `Trade -> b2 @ b3 @ b5
-    | `FAQ -> b1 @ b2
-    | `Logout -> b1 @ b2 @ b5
-    | `Null -> b1 @ b2 @ b5 @ [anon_contact_button]
+    | `NewAccount -> b2
+    | `Login -> b1
+    | `Logout -> b1 @ b2
+    | `Null -> b1 @ b2
   in
   nav ~a:[a_class ["navbar navbar-fixed-top"]; a_style "background-color: #333;"]
     [div ~a:[a_class ["container-fluid"]] [div ~a:[a_class ["navbar-header"]] btns]]
@@ -186,11 +221,20 @@ let () =
         if (not username_taken) && (not email_taken) && password_verified && pwd_complexity
         then
           (
-            let new_user = {username = Some new_username; email = Some new_email} in
+            let new_user = {
+              username = Some new_username;
+              email = Some new_email;
+              verified = Some false
+            }
+            in
             let msg = Db_funs.write_new_user new_user new_password in
             (* It is ok to force verified=true since it is only for pub addr creation *)
-            let t_id = Db_funs.get_trader_id ~verified:true new_username in
-            let new_user' = {username = new_user.username; email = new_user.email} in
+            let new_user' = {
+              username = new_user.username;
+              email = new_user.email;
+              verified = Some false
+            }
+            in
             msg
           )
         else
@@ -220,7 +264,7 @@ let () =
                div ~a:[a_id "trade_btn_1_div"]
                [div ~a:[a_class ["btn btn-lg btn-success"]; a_id "trade_btn_1";
                         a_style "background-color: #634271; border-color: #634271"]
-                [h1 [pcdata "A Button should go here..."] ()]
+                [h1 [pcdata "A Button should go here..."]]
                ];
               ]
              ]))
@@ -238,3 +282,44 @@ let () =
               ]
              ]))
           )
+
+(* Login Service *)
+let () =
+  Eliom_registration.Html5.register
+    ~service:login_service
+    (fun () () ->
+      (* Kick off the thread *)
+      Lwt.return @@ Eliom_reference.Volatile.get user_info
+      >>= fun user ->
+      Lwt.return
+        (Eliom_tools.F.html
+           ~title:"Login"
+           ~css:[["css"; "BitcoinExchange.css"]]
+           ~other_head:[bootstrap_cdn_link; font_awesome_cdn_link]
+           (body ~a:[a_class ["transparent"]]
+              [header_navbar_skeleton ~on_page:`Login user(*;*)
+            (*login_form ()*)
+           ])))
+
+(* Logout Service *)
+let () =
+  Eliom_registration.Html5.register
+    ~service:logout_service
+    (fun () () ->
+      (* Kick off the thread *)
+      Lwt.return @@ Eliom_reference.Volatile.set user_info
+        {username = None; email = None; verified = None}
+      >>= fun () -> Lwt.return @@ Eliom_reference.Volatile.get user_info
+      >>= fun user ->
+      Lwt.return
+        (Eliom_tools.F.html
+           ~title:"Logout"
+           ~css:[["css"; "BitcoinExchange.css"]]
+           ~other_head:[bootstrap_cdn_link; font_awesome_cdn_link]
+           (body ~a:[a_class ["transparent"]]
+           [header_navbar_skeleton ~on_page:`Logout user;
+            div ~a:[a_class ["container"; "margin_top_50px"; "padding_top_50px"]]
+            [h2 [pcdata "Logout Successful"];
+            ]
+           ])))
+

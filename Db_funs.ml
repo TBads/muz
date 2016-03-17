@@ -7,7 +7,8 @@ let (>>=) = Lwt.bind
 (* User type *)
 type user = {
   username : string option;
-  email: string option;
+  email    : string option;
+  verified : bool option
 }
 
 (* Database *)

@@ -36,7 +36,7 @@ let string_of_option so =
 let username_exists new_username =
   let conn = connect user_db in
   let sql_stmt =
-    "SELECT username FROM BTCExchange.users WHERE username = '" ^
+    "SELECT username FROM muz.users WHERE username = '" ^
     (real_escape conn new_username) ^ "'"
   in
   let query_result = exec conn sql_stmt in
@@ -47,7 +47,7 @@ let username_exists new_username =
 let email_exists new_email =
   let conn = connect user_db in
   let sql_stmt =
-    "SELECT email FROM BTCExchange.users WHERE email = '" ^ (real_escape conn new_email) ^ "'"
+    "SELECT email FROM muz.users WHERE email = '" ^ (real_escape conn new_email) ^ "'"
   in
   let query_result = exec conn sql_stmt in
   disconnect conn
@@ -125,7 +125,7 @@ let write_new_user (u : user) pwd =
                 Bcrypt.hash ~count:Config.pwd_iter_count (esc pwd) |> Bcrypt.string_of_hash
               in
               let sql_stmt =
-                "INSERT INTO BTCExchange.users (username, email, password)" ^
+                "INSERT INTO muz.users (username, email, password)" ^
                 " VALUES('" ^ (esc @@ g u.username) ^ "', '" ^ (esc @@ g u.email) ^ "', '" ^
                 (esc pwd') ^ "')"
               in

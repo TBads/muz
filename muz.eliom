@@ -174,13 +174,25 @@ let () =
   Muz_app.register
     ~service:main_service
     (fun () () ->
+      lwt user = Lwt.return @@ Eliom_reference.Volatile.get user_info in
       Lwt.return
         (Eliom_tools.F.html
            ~title:"muz"
            ~css:[["css";"muz.css"]]
-           Html5.F.(body [
-             h2 [pcdata "Welcome from Eliom's distillery!"];
-             ])))
+           ~other_head:[bootstrap_cdn_link; font_awesome_cdn_link]
+           (body ~a:[a_class ["transparent"]]
+            [header_navbar_skeleton user;
+             div ~a:[a_id "dark_section"]
+             [h1 ~a:[a_id "main_page_header"] [pcdata "muz"];
+              h3 ~a:[a_style "width: 800px; color: #FFFFFF; font-style: italic; margin: auto;\
+                              text-align: center"]
+              [pcdata ("News right meow")];
+             ];
+             (* TODO: Put the most recent story here when the page is loaded *)
+            ]
+           )
+        )
+    )
 
 (* New Account Service *)
 let () =
@@ -201,7 +213,7 @@ let () =
             [h5 ~a:[a_style "text-align: center; margin-bottom: 30px"]
              [pcdata ("Your password must have 8 to 100 characters, " ^
                       "1 uppercase character, 3 numbers and no spaces.")];
-             new_account_form ()
+              new_account_form ()
             ]
            ])))
 
@@ -229,12 +241,6 @@ let () =
             in
             let msg = Db_funs.write_new_user new_user new_password in
             (* It is ok to force verified=true since it is only for pub addr creation *)
-            let new_user' = {
-              username = new_user.username;
-              email = new_user.email;
-              verified = Some false
-            }
-            in
             msg
           )
         else
@@ -272,8 +278,8 @@ let () =
       else
         Lwt.return
           (Eliom_tools.F.html
-             ~title:"Bitcoin Exchange"
-             ~css:[["css"; "BitcoinExchange.css"]]
+             ~title:"muz"
+             ~css:[["css"; "muz.css"]]
              ~other_head:[bootstrap_cdn_link; font_awesome_cdn_link]
              (body ~a:[a_class ["transparent"]]
              [header_navbar_skeleton ~on_page:`NewAccount user;
@@ -294,7 +300,7 @@ let () =
       Lwt.return
         (Eliom_tools.F.html
            ~title:"Login"
-           ~css:[["css"; "BitcoinExchange.css"]]
+           ~css:[["css"; "muz.css"]]
            ~other_head:[bootstrap_cdn_link; font_awesome_cdn_link]
            (body ~a:[a_class ["transparent"]]
               [header_navbar_skeleton ~on_page:`Login user(*;*)
@@ -314,7 +320,7 @@ let () =
       Lwt.return
         (Eliom_tools.F.html
            ~title:"Logout"
-           ~css:[["css"; "BitcoinExchange.css"]]
+           ~css:[["css"; "muz.css"]]
            ~other_head:[bootstrap_cdn_link; font_awesome_cdn_link]
            (body ~a:[a_class ["transparent"]]
            [header_navbar_skeleton ~on_page:`Logout user;

@@ -5,14 +5,6 @@
   open Eliom_parameter
 }}
 
-(*
-type user = {
-  username : string option;
-  email: string option;
-  verified : bool option;
-}
-*)
-
 open Db_funs
 
 let user_info =
@@ -59,6 +51,14 @@ let login_verify_service =
 (* Logout Page Service *)
 let logout_service =
   Eliom_service.Http.service ~path:["logout"] ~get_params:Eliom_parameter.unit ()
+
+(* New Story Service *)
+let new_story_service =
+  Eliom_service.Http.service ~path:["new_story"] ~get_params:Eliom_parameter.unit ()
+
+(* Action to write the new story to the db *)
+let new_story_action =
+  Eliom_service.Http.post_coservice' ~post_params:(string "title" ** string "body") ()
 
 (*** Page Elements ***)
 
@@ -183,6 +183,42 @@ let login_form =
                      a_style "width: 150px; margin: auto; background-color: #634271;
                               border-color: #634271; font-size: 16px"]
                  ~button_type:`Submit [pcdata "Login"]
+         ]
+        ]
+       ]
+      ]
+  )
+
+(* New Story form *)
+let new_story_form =
+  Eliom_content.Html5.F.post_form ~service:new_story_action ~port:Config.port
+  (
+    fun (title, body) ->
+      [div ~a:[a_style "margin: auto; margin-top: 75px; width: 800px"]
+       [div ~a:[a_class ["panel panel-primary"];
+                a_style "border: 1px solid #634271; width: 800px; margin: auto;
+                         margin-top: 25px; border-radius: 4px"]
+        [div ~a:[a_class ["panel-heading"];
+                 a_style "background-color: #634271; border: 1px solid #634271; border-radius: 0px"]
+         [h3 ~a:[a_class ["panel-title"; "text-center"]] [pcdata "Submit a New Story"]
+         ];
+         div ~a:[a_class ["panel-body"]; a_style "border-radius: 4px; background: whitesmoke"]
+         [textarea ~a:[a_class ["form-control"];
+                       a_placeholder "Type Your Story Title Here";
+                       a_style "height: 40px"]
+                   ~name:title ()
+         ];
+         div ~a:[a_class ["panel-body"]; a_style "border-radius: 4px; background: whitesmoke"]
+         [textarea ~a:[a_class ["form-control"];
+                       a_placeholder "Type Your Story Body Here";
+                       a_style "height: 200px"]
+                   ~name:body ()
+         ];
+         div ~a:[a_style "background-color: whitesmoke; padding-bottom: 15px; border-radius: 4px"]
+         [button ~a:[a_class ["btn btn-lg btn-success btn-block"];
+                     a_style "width: 150px; margin: auto; background-color: #634271;
+                              border-color: #634271; font-size: 16px"]
+                 ~button_type:`Submit [pcdata "Submit"]
          ]
         ]
        ]
@@ -384,4 +420,60 @@ let () =
             [h2 [pcdata "Logout Successful"];
             ]
            ])))
+
+(* New Story Service *)
+let () =
+  Eliom_registration.Html5.register
+    ~service:new_story_service
+    (fun () () ->
+      let user = Eliom_reference.Volatile.get user_info in
+      Lwt.return
+        (Eliom_tools.F.html
+          ~title:"New Story"
+          ~css:[["css";"muz.css"]]
+          ~other_head:[bootstrap_cdn_link; font_awesome_cdn_link]
+          (body ~a:[a_class ["transparent"]]
+           [header_navbar_skeleton user;
+            new_story_form ()
+           ])))
+
+(* Write the new story to the database *)
+let () =
+  Eliom_registration.Action.register
+  ~options:`Reload
+  ~service:new_story_action
+  (fun () (title, body) ->
+    (* TODO: Give success/fail message for the contact message *)
+    (* TODO: Why do these popups not work?!?! *)
+     lwt () = Lwt_unix.sleep 3.0 in (* Throttle *)
+    (* TODO: Do a length check for the title also *)
+    let long_enough = (Lwt_bytes.length @@ Lwt_bytes.of_string body) >= 10 in
+    let short_enough = (Lwt_bytes.length @@ Lwt_bytes.of_string body) <= 10_000 in
+    match long_enough, short_enough with
+    | true, true ->
+        begin
+          ignore
+            {unit{
+              Dom_html.window##alert
+                (Js.string ("Thanks for the submission! Notify your firends with this link."))
+            }};
+          (*Lwt.return @@ Db_funs.write_anon_msg anon_msg*)(* TODO: Write story here *)
+          Lwt.return ()
+        end
+    | false, _ ->
+        begin
+        ignore
+          {unit{
+            Dom_html.window##alert
+              (Js.string ("ERROR: Your message must be at least 10 characters."))
+          }};
+        Lwt_io.print "ERROR: Your message must be at least 10 characters."
+        end
+    | _, false ->
+        Lwt.return @@ ignore
+          {unit{
+            Dom_html.window##alert
+              (Js.string ("ERROR: Your message must be less than 10,000 characters."))
+          }}
+  )
 

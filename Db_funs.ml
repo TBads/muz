@@ -32,6 +32,10 @@ let string_of_option so =
   | Some s -> s
   | None -> ""
 
+let sll_of_res res =
+  Mysql.map res (fun a -> Array.to_list a)
+  |> List.map (List.map string_of_option)
+
 (* Check if the username already exists in database *)
 let username_exists new_username =
   let conn = connect user_db in
@@ -134,3 +138,24 @@ let write_new_user (u : user) pwd =
           )
       )
   | None -> Lwt.return "No username found"
+
+(* Verify a username and password pair *)
+let verify_login username pwd =
+  let conn = connect user_db in
+  let esc s = Mysql.real_escape conn s in
+  let sql_stmt =
+    "SELECT username, password FROM muz.users WHERE username = '" ^ (esc username) ^"'"
+  in
+  let query_result = exec conn sql_stmt in
+  let name_pass =
+    try query_result |> sll_of_res |> List.hd
+    with Failure hd -> ["username fail"; "password fail"]
+  in
+  let verified =
+    try
+      List.nth name_pass 0 = username &&
+      Bcrypt.verify (esc pwd) (Bcrypt.hash_of_string @@ esc @@ List.nth name_pass 1)
+    with Bcrypt.Bcrypt_error -> false
+  in
+  disconnect conn;
+  Lwt.return verified

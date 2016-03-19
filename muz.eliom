@@ -31,6 +31,7 @@ module Muz_app =
       let application_name = "muz"
     end)
 
+(* Main Page Service *)
 let main_service =
   Eliom_service.App.service ~path:[] ~get_params:Eliom_parameter.unit ()
 
@@ -49,6 +50,11 @@ let new_acct_db_service =
 (* Login Page Service *)
 let login_service =
   Eliom_service.Http.service ~path:["login"] ~get_params:Eliom_parameter.unit ()
+
+(* Verify the users login details and set the session data if username and password are verified *)
+let login_verify_service =
+  Eliom_service.Http.post_service ~fallback:login_service
+                                  ~post_params:(string "username" ** string "password") ()
 
 (* Logout Page Service *)
 let logout_service =
@@ -151,6 +157,36 @@ let new_account_form =
                  ~button_type:`Submit [pcdata "Submit"]
       ]]
       ]]
+  )
+
+let login_form =
+  Eliom_content.Html5.F.post_form ~service:login_verify_service ~port:Config.port
+  (
+    fun (username, password) ->
+      [div ~a:[a_id "login_form"]
+       [div ~a:[a_class ["panel panel-primary"];
+                a_style "border: 1px solid #634271; width: 400px; margin: auto; border-radius: 4px"]
+        [div ~a:[a_class ["panel-heading"];
+                 a_style "background-color: #634271; border: 1px solid #634271; border-radius: 0px"]
+         [h3 ~a:[a_class ["panel-title"; "text-center"]] [pcdata "Login"]
+         ];
+         div ~a:[a_class ["panel-body"]; a_style "border-radius: 4px; background: whitesmoke"]
+         [div ~a:[a_class ["form-group"]]
+          [string_input ~a:[a_class ["form-control"]; a_placeholder "Username"]
+                        ~input_type:`Text ~name:username ()
+          ];
+          div ~a:[a_class ["form-group"]]
+          [string_input ~a:[a_class ["form-control"]; a_placeholder "Password"]
+                        ~input_type:`Password ~name:password ()
+          ];
+          button ~a:[a_class ["btn btn-lg btn-success btn-block"];
+                     a_style "width: 150px; margin: auto; background-color: #634271;
+                              border-color: #634271; font-size: 16px"]
+                 ~button_type:`Submit [pcdata "Login"]
+         ]
+        ]
+       ]
+      ]
   )
 
 (* Header Navbar Skeleton *)
@@ -303,9 +339,29 @@ let () =
            ~css:[["css"; "muz.css"]]
            ~other_head:[bootstrap_cdn_link; font_awesome_cdn_link]
            (body ~a:[a_class ["transparent"]]
-              [header_navbar_skeleton ~on_page:`Login user(*;*)
-            (*login_form ()*)
-           ])))
+              [header_navbar_skeleton ~on_page:`Login user;
+               login_form ()
+              ])))
+
+(* Verify the users login data and set the session data if the verification passes *)
+let () =
+  Eliom_registration.Redirection.register
+    ~service:login_verify_service
+    (fun () (username, password) ->
+      (* Verify the user *)
+      Db_funs.verify_login username password
+      >>= fun b ->
+      if b
+      then
+        begin
+          Eliom_reference.Volatile.set user_info
+            {username = Some username; email = None; verified = Some true};
+          Lwt.return main_service
+        end
+      else
+        let () = Lwt.async (fun () -> Lwt_io.print "\n\nLOGIN FAILED!") in
+        Lwt.return logout_service
+    )
 
 (* Logout Service *)
 let () =

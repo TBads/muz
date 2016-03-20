@@ -267,10 +267,12 @@ let html_of_story (s : story) =
   div ~a:[]
   [h1 ~a:[a_style "margin: 40px auto; witdh: 800px; text-align: center"]
    [pcdata s.title];
-   p ~a:[a_style "margin 5px auto; width 800px; text-align: center"]
+   p ~a:[a_style "margin: auto auto 15px; width: 1200px; text-align: left"]
    [pcdata (s.author ^ ", " ^ s.date_time)];
    p ~a:[a_style "margin: auto; width: 1200px; text-align: justify"]
-   [pcdata s.body]
+     [pcdata s.body];
+   div ~a:[a_style "border: 2px solid #333; height: 10px; width: 1200px; margin: 20px auto;
+                    background-color: #333; border-radius: 5px"] []
   ]
 
 (* Turn a list of stories into html *)

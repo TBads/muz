@@ -74,6 +74,11 @@ let font_awesome_cdn_link =
       link ~rel:[`Stylesheet] ~href:(Xml.uri_of_string cdn_link)
         ()
 
+let main_page_button =
+  div ~a:[a_class ["btn btn-default btn-lg"]; a_id "header_button"]
+  [a main_service [pcdata "Home"] ()
+  ]
+
 let new_account_button (u : user) =
   match u.verified with
   | Some true -> div []
@@ -96,6 +101,11 @@ let login_logout_button (u : user) =
   match u.verified with
   | Some true -> logout_button
   | _ -> login_button
+
+let new_story_button =
+  div ~a:[a_class ["btn btn-default btn-lg"]; a_id "header_button"]
+  [a new_story_service [pcdata "Submit a Story"] ()
+  ]
 
 let new_account_form =
   Eliom_content.Html5.F.post_form ~service:new_acct_db_service ~port:Config.port
@@ -204,13 +214,13 @@ let new_story_form =
          ];
          div ~a:[a_class ["panel-body"]; a_style "border-radius: 4px; background: whitesmoke"]
          [textarea ~a:[a_class ["form-control"];
-                       a_placeholder "Type Your Story Title Here";
+                       a_placeholder "Title";
                        a_style "height: 40px"]
                    ~name:title ()
          ];
          div ~a:[a_class ["panel-body"]; a_style "border-radius: 4px; background: whitesmoke"]
          [textarea ~a:[a_class ["form-control"];
-                       a_placeholder "Type Your Story Body Here";
+                       a_placeholder "Body";
                        a_style "height: 200px"]
                    ~name:body ()
          ];
@@ -227,14 +237,18 @@ let new_story_form =
 
 (* Header Navbar Skeleton *)
 let header_navbar_skeleton ?(on_page = `Null) (u : user) =
+  let b0 = if on_page = `Main then [] else [main_page_button] in
   let b1 = if on_page = `NewAccount then [] else [new_account_button u] in
   let b2 = if on_page = `Login then [] else [login_logout_button u] in
+  let b3 = if on_page = `NewStory then [] else [new_story_button] in
   let btns =
     match on_page with
-    | `NewAccount -> b2
-    | `Login -> b1
-    | `Logout -> b1 @ b2
-    | `Null -> b1 @ b2
+    | `Main -> b1 @ b2 @ b3
+    | `NewAccount -> b0 @ b2 @ b3
+    | `Login -> b0 @ b1 @ b3
+    | `Logout -> b0 @ b1 @ b2 @ b3
+    | `NewStory -> b0 @ b1 @ b2
+    | `Null -> b0 @ b1 @ b2 @ b3
   in
   nav ~a:[a_class ["navbar navbar-fixed-top"]; a_style "background-color: #333;"]
     [div ~a:[a_class ["container-fluid"]] [div ~a:[a_class ["navbar-header"]] btns]]
@@ -247,20 +261,26 @@ let () =
     ~service:main_service
     (fun () () ->
       lwt user = Lwt.return @@ Eliom_reference.Volatile.get user_info in
+      lwt newest_story = Db_funs.get_newest_story () in
       Lwt.return
         (Eliom_tools.F.html
            ~title:"muz"
            ~css:[["css";"muz.css"]]
            ~other_head:[bootstrap_cdn_link; font_awesome_cdn_link]
            (body ~a:[a_class ["transparent"]]
-            [header_navbar_skeleton user;
+            [header_navbar_skeleton ~on_page:`Main user;
              div ~a:[a_id "dark_section"]
              [h1 ~a:[a_id "main_page_header"] [pcdata "muz"];
               h3 ~a:[a_style "width: 800px; color: #FFFFFF; font-style: italic; margin: auto;\
                               text-align: center"]
               [pcdata ("News right meow")];
              ];
-             (* TODO: Put the most recent story here when the page is loaded *)
+             div
+             [h1 ~a:[a_style "margin: 40px auto; witdh: 800px; text-align: center"]
+              [pcdata newest_story.title];
+              p ~a:[a_style "margin: auto; width: 1200px; text-align: justify"]
+              [pcdata newest_story.body]
+             ]
             ]
            )
         )
@@ -433,7 +453,7 @@ let () =
           ~css:[["css";"muz.css"]]
           ~other_head:[bootstrap_cdn_link; font_awesome_cdn_link]
           (body ~a:[a_class ["transparent"]]
-           [header_navbar_skeleton user;
+           [header_navbar_skeleton ~on_page:`NewStory user;
             new_story_form ()
            ])))
 
@@ -444,9 +464,11 @@ let () =
   ~service:new_story_action
   (fun () (title, body) ->
     (* TODO: Give success/fail message for the contact message *)
-    (* TODO: Why do these popups not work?!?! *)
-     lwt () = Lwt_unix.sleep 3.0 in (* Throttle *)
-    (* TODO: Do a length check for the title also *)
+    (****** TODO: Why do these popups not work?!?! ******)
+     (*lwt () = Lwt_unix.sleep 3.0 in*) (* Throttle *)
+     (* TODO: Do a length check for the title also *)
+     (* TODO: Users can currently submit a new story without being logged in *)
+    let user = Eliom_reference.Volatile.get user_info in
     let long_enough = (Lwt_bytes.length @@ Lwt_bytes.of_string body) >= 10 in
     let short_enough = (Lwt_bytes.length @@ Lwt_bytes.of_string body) <= 10_000 in
     match long_enough, short_enough with
@@ -454,26 +476,21 @@ let () =
         begin
           ignore
             {unit{
-              Dom_html.window##alert
-                (Js.string ("Thanks for the submission! Notify your firends with this link."))
+              Dom_html.window##alert (Js.string "Thanks for the submission!")
             }};
-          (*Lwt.return @@ Db_funs.write_anon_msg anon_msg*)(* TODO: Write story here *)
-          Lwt.return ()
+          Db_funs.write_new_story user ~title ~body
         end
     | false, _ ->
         begin
-        ignore
+        Lwt.return @@ ignore
           {unit{
-            Dom_html.window##alert
-              (Js.string ("ERROR: Your message must be at least 10 characters."))
-          }};
-        Lwt_io.print "ERROR: Your message must be at least 10 characters."
+            Dom_html.window##alert (Js.string "ERROR: Body must be at least 10 characters.")
+          }}
         end
     | _, false ->
         Lwt.return @@ ignore
           {unit{
-            Dom_html.window##alert
-              (Js.string ("ERROR: Your message must be less than 10,000 characters."))
+            Dom_html.window##alert (Js.string "ERROR: Body must be less than 10,000 characters.")
           }}
   )
 

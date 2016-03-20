@@ -60,6 +60,10 @@ let new_story_service =
 let new_story_action =
   Eliom_service.Http.post_coservice' ~post_params:(string "title" ** string "body") ()
 
+(* User page service *)
+let user_page_service =
+  Eliom_service.Http.service ~path:["u"] ~get_params:(suffix (string "username")) ()
+
 (*** Page Elements ***)
 
 (* Bootstrap CDN link *)
@@ -102,10 +106,15 @@ let login_logout_button (u : user) =
   | Some true -> logout_button
   | _ -> login_button
 
-let new_story_button =
-  div ~a:[a_class ["btn btn-default btn-lg"]; a_id "header_button"]
-  [a new_story_service [pcdata "Submit a Story"] ()
-  ]
+let new_story_button (u : user) =
+  match u.verified with
+  | Some true ->
+    begin
+      div ~a:[a_class ["btn btn-default btn-lg"]; a_id "header_button"]
+      [a new_story_service [pcdata "Submit a Story"] ()
+      ]
+    end
+  | _ -> div []
 
 let new_account_form =
   Eliom_content.Html5.F.post_form ~service:new_acct_db_service ~port:Config.port
@@ -240,7 +249,7 @@ let header_navbar_skeleton ?(on_page = `Null) (u : user) =
   let b0 = if on_page = `Main then [] else [main_page_button] in
   let b1 = if on_page = `NewAccount then [] else [new_account_button u] in
   let b2 = if on_page = `Login then [] else [login_logout_button u] in
-  let b3 = if on_page = `NewStory then [] else [new_story_button] in
+  let b3 = if on_page = `NewStory then [] else [new_story_button u] in
   let btns =
     match on_page with
     | `Main -> b1 @ b2 @ b3
@@ -252,6 +261,21 @@ let header_navbar_skeleton ?(on_page = `Null) (u : user) =
   in
   nav ~a:[a_class ["navbar navbar-fixed-top"]; a_style "background-color: #333;"]
     [div ~a:[a_class ["container-fluid"]] [div ~a:[a_class ["navbar-header"]] btns]]
+
+(* Turn a story into html *)
+let html_of_story (s : story) =
+  div ~a:[]
+  [h1 ~a:[a_style "margin: 40px auto; witdh: 800px; text-align: center"]
+   [pcdata s.title];
+   p ~a:[a_style "margin 5px auto; width 800px; text-align: center"]
+   [pcdata (s.author ^ ", " ^ s.date_time)];
+   p ~a:[a_style "margin: auto; width: 1200px; text-align: justify"]
+   [pcdata s.body]
+  ]
+
+(* Turn a list of stories into html *)
+let html_of_stories stories =
+  List.map html_of_story stories
 
 (*** Register Services ***)
 
@@ -351,7 +375,7 @@ let () =
       then begin
         Lwt.return
           (Eliom_tools.F.html
-             ~title:"Muz"
+             ~title:"muz"
              ~css:[["css"; "muz.css"]]
              ~other_head:[bootstrap_cdn_link; font_awesome_cdn_link]
              (body ~a:[a_class ["transparent"]]
@@ -454,7 +478,13 @@ let () =
           ~other_head:[bootstrap_cdn_link; font_awesome_cdn_link]
           (body ~a:[a_class ["transparent"]]
            [header_navbar_skeleton ~on_page:`NewStory user;
-            new_story_form ()
+            (
+              match user.verified with
+              | Some true -> new_story_form ()
+              | _ ->
+                  h1 ~a:[a_style "margin-top: 100px; text-align: center"]
+                  [pcdata "ERROR: You must be logged in to submit a new story."]
+            )
            ])))
 
 (* Write the new story to the database *)
@@ -494,3 +524,24 @@ let () =
           }}
   )
 
+(* User Page Service *)
+let () =
+  Eliom_registration.Html5.register
+    ~service:user_page_service
+    (fun username () ->
+       let user = Eliom_reference.Volatile.get user_info in
+       let all_stories = Db_funs.get_all_stories username in
+       Lwt.return
+         (Eliom_tools.F.html
+           ~title:("muz/u/" ^ username)
+           ~css:[["css"; "muz.css"]]
+           ~other_head:[bootstrap_cdn_link; font_awesome_cdn_link]
+           (body ~a:[a_class ["transparent"]]
+            [header_navbar_skeleton user;
+             h1 ~a:[a_style "margin-top: 100px; text-align: center"]
+             [pcdata (username ^ "/home")];
+             div (html_of_stories all_stories)
+            ]
+           )
+         )
+    )

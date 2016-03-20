@@ -44,6 +44,14 @@ let sll_of_res res =
   Mysql.map res (fun a -> Array.to_list a)
   |> List.map (List.map string_of_option)
 
+let story_of_result s =
+  {title = List.nth s 2;
+   body = List.nth s 3;
+   author = List.nth s 1;
+   date_time = List.nth s 4
+  }
+
+
 (* Check if the username already exists in database *)
 let username_exists new_username =
   let conn = connect user_db in
@@ -181,22 +189,22 @@ let write_new_story (u : user) ~title ~body =
   let _ = exec conn sql_stmt in
   Lwt.return @@ disconnect conn
 
-(* TODO: Test this *)
 (* Get the most recent story from the database *)
 let get_newest_story () =
   let conn = connect user_db in
-  let sql_stmt_1 =
-    "SELECT MAX(story_id) FROM muz.stories"
-  in
+  let sql_stmt_1 = "SELECT MAX(story_id) FROM muz.stories" in
   let query_result_1 = exec conn sql_stmt_1 in
   let max_id = query_result_1 |> sll_of_res |> List.hd |> List.hd in
-  let sql_stmt_2 =
-    "SELECT * FROM muz.stories WHERE story_id = " ^ max_id
-  in
+  let sql_stmt_2 = "SELECT * FROM muz.stories WHERE story_id = " ^ max_id in
   let res = exec conn sql_stmt_2 |> sll_of_res |> List.hd in
-  Lwt.return {
-    title = List.nth res 2;
-    body = List.nth res 3;
-    author = List.nth res 1;
-    date_time = List.nth res 4
-  }
+  Lwt.return @@ story_of_result res
+
+(* Get a stories for a single user *)
+let get_all_stories username =
+  let conn = connect user_db in
+  let esc s = Mysql.real_escape conn s in
+  let sql_stmt = "SELECT * FROM muz.stories WHERE username = " ^ "'" ^ (esc @@ username) ^ "'" in
+  let query_result = exec conn sql_stmt in
+  disconnect conn;
+  try query_result |> sll_of_res |> (*List.hd |>*) (List.map story_of_result)
+  with Failure hd -> []

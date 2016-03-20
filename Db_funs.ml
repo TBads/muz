@@ -11,6 +11,14 @@ type user = {
   verified : bool option
 }
 
+(* Story type *)
+type story = {
+  title     : string;
+  body      : string;
+  author    : string;
+  date_time : string
+}
+
 (* Database *)
 let user_db = {
   dbhost = None;
@@ -159,3 +167,36 @@ let verify_login username pwd =
   in
   disconnect conn;
   Lwt.return verified
+
+(* Write a new story to the database *)
+let write_new_story (u : user) ~title ~body =
+  let now = string_of_int @@ int_of_float @@ Unix.time () in
+  let conn = connect user_db in
+  let esc s = Mysql.real_escape conn s in
+  let sql_stmt =
+    "INSERT INTO muz.stories (username, title, body, date_time)" ^ " VALUES ('" ^
+    (esc @@ string_of_option u.username) ^ "', '" ^ (esc title) ^ "', '" ^ (esc body) ^ "', '" ^
+    (esc now) ^ "')"
+  in
+  let _ = exec conn sql_stmt in
+  Lwt.return @@ disconnect conn
+
+(* TODO: Test this *)
+(* Get the most recent story from the database *)
+let get_newest_story () =
+  let conn = connect user_db in
+  let sql_stmt_1 =
+    "SELECT MAX(story_id) FROM muz.stories"
+  in
+  let query_result_1 = exec conn sql_stmt_1 in
+  let max_id = query_result_1 |> sll_of_res |> List.hd |> List.hd in
+  let sql_stmt_2 =
+    "SELECT * FROM muz.stories WHERE story_id = " ^ max_id
+  in
+  let res = exec conn sql_stmt_2 |> sll_of_res |> List.hd in
+  Lwt.return {
+    title = List.nth res 2;
+    body = List.nth res 3;
+    author = List.nth res 1;
+    date_time = List.nth res 4
+  }

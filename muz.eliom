@@ -5,6 +5,8 @@
   open Eliom_parameter
 }}
 
+(* TODO: Add photos to the story type and ability of user to upload a photo for the story *)
+
 open Db_funs
 
 let user_info =
@@ -278,6 +280,30 @@ let html_of_story (s : story) =
 (* Turn a list of stories into html *)
 let html_of_stories stories =
   List.map html_of_story stories
+
+(* Turn a story into an html thumbnail *)
+let thumb_of_story ?link (s : story) =
+  let style_string =
+    "width: 300px; float: left; height: 600px; margin-top: 10px; margin-bottom: 10px; " ^
+    "margin-left: 25px; border-radius: 10px; box-shadow: 5px 5px 5px grey"
+  in
+  let default_link =
+    match link with
+    | Some l -> l
+    | None -> "https://pbs.twimg.com/profile_images/664169149002874880/z1fmxo00.jpg"
+  in
+  div ~a:[a_class ["thumbnail"]; a_style style_string]
+  [img ~a:[a_style "border-radius: 10px; margin-top: 13px"]
+       ~alt:(s.title) ~src:(Xml.uri_of_string default_link) ();
+   div ~a:[a_class ["caption"]]
+   [h3 [pcdata (String.sub s.title 0 10)];
+    p [pcdata (String.sub s.body 0 100)]
+   ]
+  ]
+
+(* Turn a list of stories into a list of thumbnails *)
+let thumbs_of_stories stories =
+  List.map (thumb_of_story) stories
 
 (*** Register Services ***)
 

@@ -288,6 +288,13 @@ let () =
     (fun () () ->
       lwt user = Lwt.return @@ Eliom_reference.Volatile.get user_info in
       lwt newest_story = Db_funs.get_newest_story () in
+      let cat_link = "https://images-na.ssl-images-amazon.com/images/I/71OhlIO9LfL._SL256_.jpg" in
+      let cat_link_2 = "https://pbs.twimg.com/profile_images/664169149002874880/z1fmxo00.jpg" in
+      let cat_link_3 = "https://pbs.twimg.com/profile_images/590966305248784384/1gX6-SY6.jpg" in
+      let style_string =
+        "width: 300px; float: left; height: 600px; margin-top: 10px; margin-bottom: 10px; " ^
+        "margin-left: 25px; border-radius: 10px; box-shadow: 5px 5px 5px grey"
+      in
       Lwt.return
         (Eliom_tools.F.html
            ~title:"muz"
@@ -301,11 +308,41 @@ let () =
                               text-align: center"]
               [pcdata ("News right meow")];
              ];
+
              div
              [h1 ~a:[a_style "margin: 40px auto; witdh: 800px; text-align: center"]
               [pcdata newest_story.title];
               p ~a:[a_style "margin: auto; width: 1200px; text-align: justify"]
               [pcdata newest_story.body]
+             ];
+
+             div ~a:[a_class ["row"]; a_style "width: 1000px; height: 600px; margin: auto"]
+             [div
+              [div ~a:[a_class ["thumbnail"]; a_style style_string]
+               [img ~a:[a_style "border-radius: 10px; margin-top: 13px"]
+                    ~alt:"Test Image 1" ~src:(Xml.uri_of_string cat_link) ();
+                div ~a:[a_class ["caption"]]
+                [h3 [pcdata "Thumbnail Label"];
+                 p [pcdata "Cras justo odio, dapibus ac facilisis in elit."]
+                ]
+               ];
+              div ~a:[a_class ["thumbnail"]; a_style style_string]
+              [img ~a:[a_style "border-radius: 10px; margin-top: 13px"]
+                   ~alt:"Test Image 1" ~src:(Xml.uri_of_string cat_link_2) ();
+                div ~a:[a_class ["caption"]]
+                [h3 [pcdata "Thumbnail Label"];
+                 p [pcdata "Cras justo odio, dapibus ac facilisis in elit."]
+                ]
+               ];
+              div ~a:[a_class ["thumbnail"]; a_style style_string]
+              [img ~a:[a_style "border-radius: 10px; margin-top: 13px"]
+                   ~alt:"Test Image 1" ~src:(Xml.uri_of_string cat_link_3) ();
+                div ~a:[a_class ["caption"]]
+                [h3 [pcdata "Thumbnail Label"];
+                 p [pcdata "Cras justo odio, dapibus ac facilisis in elit."]
+                ]
+               ];
+              ]
              ]
             ]
            )

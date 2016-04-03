@@ -60,7 +60,9 @@ let new_story_service =
 
 (* Action to write the new story to the db *)
 let new_story_action =
-  Eliom_service.Http.post_coservice' ~post_params:(string "title" ** string "body") ()
+  Eliom_service.Http.post_coservice' ~post_params:(string "title" **
+                                                   string "body" **
+                                                   (opt (string "pic_link"))) ()
 
 (* User page service *)
 let user_page_service =
@@ -114,6 +116,16 @@ let new_story_button (u : user) =
     begin
       div ~a:[a_class ["btn btn-default btn-lg"]; a_id "header_button"]
       [a new_story_service [pcdata "Submit a Story"] ()
+      ]
+    end
+  | _ -> div []
+
+let user_page_button (u : user) =
+  match u.verified with
+  | Some true ->
+    begin
+      div ~a:[a_class ["btn btn-default btn-lg"]; a_id "header_button"]
+      [a user_page_service [pcdata "My Homepage"] (string_of_option u.username)
       ]
     end
   | _ -> div []
@@ -214,7 +226,7 @@ let login_form =
 let new_story_form =
   Eliom_content.Html5.F.post_form ~service:new_story_action ~port:Config.port
   (
-    fun (title, body) ->
+    fun (title, (body, pic_link)) ->
       [div ~a:[a_style "margin: auto; margin-top: 75px; width: 800px"]
        [div ~a:[a_class ["panel panel-primary"];
                 a_style "border: 1px solid #634271; width: 800px; margin: auto;
@@ -223,12 +235,21 @@ let new_story_form =
                  a_style "background-color: #634271; border: 1px solid #634271; border-radius: 0px"]
          [h3 ~a:[a_class ["panel-title"; "text-center"]] [pcdata "Submit a New Story"]
          ];
+
          div ~a:[a_class ["panel-body"]; a_style "border-radius: 4px; background: whitesmoke"]
          [textarea ~a:[a_class ["form-control"];
                        a_placeholder "Title";
                        a_style "height: 40px"]
                    ~name:title ()
          ];
+
+         div ~a:[a_class ["panel-body"]; a_style "border-radius: 4px; background: whitesmoke"]
+         [textarea ~a:[a_class ["form-control"];
+                       a_placeholder "Picture Link";
+                       a_style "height: 40px"]
+                   ~name:pic_link ()
+         ];
+
          div ~a:[a_class ["panel-body"]; a_style "border-radius: 4px; background: whitesmoke"]
          [textarea ~a:[a_class ["form-control"];
                        a_placeholder "Body";
@@ -252,28 +273,43 @@ let header_navbar_skeleton ?(on_page = `Null) (u : user) =
   let b1 = if on_page = `NewAccount then [] else [new_account_button u] in
   let b2 = if on_page = `Login then [] else [login_logout_button u] in
   let b3 = if on_page = `NewStory then [] else [new_story_button u] in
+  let b4 = if on_page = `UserHome then [] else [user_page_button u] in
   let btns =
     match on_page with
-    | `Main -> b1 @ b2 @ b3
-    | `NewAccount -> b0 @ b2 @ b3
-    | `Login -> b0 @ b1 @ b3
-    | `Logout -> b0 @ b1 @ b2 @ b3
-    | `NewStory -> b0 @ b1 @ b2
-    | `Null -> b0 @ b1 @ b2 @ b3
+    | `Main -> b1 @ b2 @ b3 @ b4
+    | `NewAccount -> b0 @ b2 @ b3 @ b4
+    | `Login -> b0 @ b1 @ b3 @ b4
+    | `Logout -> b0 @ b1 @ b2 @ b3 @ b4
+    | `NewStory -> b0 @ b1 @ b2 @ b4
+    | `UserHome -> b0 @ b2 @ b3
+    | `Null -> b0 @ b1 @ b2 @ b3 @ b4
   in
   nav ~a:[a_class ["navbar navbar-fixed-top"]; a_style "background-color: #333;"]
     [div ~a:[a_class ["container-fluid"]]
      [div ~a:[a_class ["navbar-header"]; a_style "width: 100%"] btns]]
+
+(* Insert a cat link if the user does not upload a story photo *)
+let cat_or_photo so =
+  match so with
+  | Some s -> s
+  | None   -> "https://pbs.twimg.com/profile_images/664169149002874880/z1fmxo00.jpg"
 
 (* Turn a story into html *)
 let html_of_story (s : story) =
   div ~a:[]
   [h1 ~a:[a_style "margin: 40px auto; witdh: 800px; text-align: center"]
    [pcdata s.title];
+
+   (* TODO: Restrict the height & width of this photo. Center this! *)
+   img ~alt:"Picture name goes here"
+       ~src:(Xml.uri_of_string (cat_or_photo s.pic_link)) ();
+
    p ~a:[a_style "margin: auto auto 15px; width: 1200px; text-align: left"]
    [pcdata (s.author ^ ", " ^ s.date_time)];
+
    p ~a:[a_style "margin: auto; width: 1200px; text-align: justify"]
-     [pcdata s.body];
+   [pcdata s.body];
+
    div ~a:[a_style "border: 2px solid #333; height: 10px; width: 1200px; margin: 20px auto;
                     background-color: #333; border-radius: 5px"] []
   ]
@@ -561,7 +597,7 @@ let () =
   Eliom_registration.Action.register
   ~options:`Reload
   ~service:new_story_action
-  (fun () (title, body) ->
+  (fun () (title, (body, pic_link)) ->
     (* TODO: Give success/fail message for the contact message *)
     (****** TODO: Why do these popups not work?!?! ******)
      (*lwt () = Lwt_unix.sleep 3.0 in*) (* Throttle *)
@@ -577,7 +613,7 @@ let () =
             {unit{
               Dom_html.window##alert (Js.string "Thanks for the submission!")
             }};
-          Db_funs.write_new_story user ~title ~body
+          Db_funs.write_new_story user ~title ~body ~pic_link
         end
     | false, _ ->
         begin
@@ -606,7 +642,7 @@ let () =
            ~css:[["css"; "muz.css"]]
            ~other_head:[bootstrap_cdn_link; font_awesome_cdn_link]
            (body ~a:[a_class ["transparent"]]
-            [header_navbar_skeleton user;
+            [header_navbar_skeleton ~on_page:`UserHome user;
              h1 ~a:[a_style "margin-top: 100px; text-align: center"]
              [pcdata (username ^ "/home")];
              div (html_of_stories all_stories)

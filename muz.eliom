@@ -300,8 +300,8 @@ let html_of_story (s : story) =
   [h1 ~a:[a_style "margin: 40px auto; witdh: 800px; text-align: center"]
    [pcdata s.title];
 
-   (* TODO: Restrict the height & width of this photo. Center this! *)
-   img ~alt:"Picture name goes here"
+   img ~a:[a_style "margin: auto; display: block; max-height: 300px; max-width: 1200px"]
+       ~alt:"Picture name goes here"
        ~src:(Xml.uri_of_string (cat_or_photo s.pic_link)) ();
 
    p ~a:[a_style "margin: auto auto 15px; width: 1200px; text-align: left"]
@@ -402,6 +402,11 @@ let () =
                               background: white; border-radius: 10px; height: 75px;
                               font-size: 45px; box-shadow: 5px 5px 5px grey; line-height: 70px"]
               [pcdata (safe_string ~max_len:42 newest_story.title)];
+
+              img ~a:[a_style "margin: auto; display: block; max-height: 300px; max-width: 1200px"]
+                  ~alt:"Picture name goes here"
+                  ~src:(Xml.uri_of_string (cat_or_photo newest_story.pic_link)) ();
+
               p ~a:[a_style "margin: 0px auto 40px; text-align: justify; width: 1200px;
                              background: white; border-radius: 10px; font-size: 15px;
                              box-shadow: 5px 5px 5px grey; padding: 10px"]
@@ -635,7 +640,7 @@ let () =
     ~service:user_page_service
     (fun username () ->
        let user = Eliom_reference.Volatile.get user_info in
-       let all_stories = Db_funs.get_all_stories username in
+       let all_stories = List.rev @@ Db_funs.get_all_stories username in
        Lwt.return
          (Eliom_tools.F.html
            ~title:("muz/u/" ^ username)

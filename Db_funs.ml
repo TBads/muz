@@ -208,3 +208,14 @@ let get_all_stories username =
   disconnect conn;
   try query_result |> sll_of_res |> (*List.hd |>*) (List.map story_of_result)
   with Failure hd -> []
+
+(* Get the most recent stories *)
+let get_recent_stories ~n () =
+  let conn = connect user_db in
+  let sql_stmt = "SELECT * FROM muz.stories ORDER BY date_time DESC LIMIT " ^ (string_of_int n) in
+  let query_result = exec conn sql_stmt in
+  disconnect conn;
+  Lwt.return (
+    try query_result |> sll_of_res |> (List.map story_of_result)
+    with Failure hd -> []
+  )

@@ -262,7 +262,8 @@ let header_navbar_skeleton ?(on_page = `Null) (u : user) =
     | `Null -> b0 @ b1 @ b2 @ b3
   in
   nav ~a:[a_class ["navbar navbar-fixed-top"]; a_style "background-color: #333;"]
-    [div ~a:[a_class ["container-fluid"]] [div ~a:[a_class ["navbar-header"]] btns]]
+    [div ~a:[a_class ["container-fluid"]]
+     [div ~a:[a_class ["navbar-header"]; a_style "width: 100%"] btns]]
 
 (* Turn a story into html *)
 let html_of_story (s : story) =
@@ -283,6 +284,26 @@ let html_of_stories stories =
 
 (* Turn a story into an html thumbnail *)
 let thumb_of_story ?link (s : story) =
+  let safe_title =
+    if String.length s.title <= 20
+    then s.title
+    else
+      begin
+        try (String.sub s.title 0 (min (String.length s.title) 20)) ^ "..." with
+        | Invalid_argument "String.sub / Bytes.sub" -> "Untitled..."
+        | _ -> "Title Error..."
+      end
+  in
+  let safe_body =
+    if String.length s.body <= 375
+    then s.body
+    else
+      begin
+        try (String.sub s.body 0 (min (String.length s.body) 375)) ^ "..." with
+        | Invalid_argument "String.sub / Bytes.sub" -> "Nothin here..."
+        | _ -> "Something went wrong..."
+      end
+  in
   let style_string =
     "width: 300px; float: left; height: 600px; margin-top: 10px; margin-bottom: 10px; " ^
     "margin-left: 25px; border-radius: 10px; box-shadow: 5px 5px 5px grey"
@@ -296,8 +317,8 @@ let thumb_of_story ?link (s : story) =
   [img ~a:[a_style "border-radius: 10px; margin-top: 13px"]
        ~alt:(s.title) ~src:(Xml.uri_of_string default_link) ();
    div ~a:[a_class ["caption"]]
-   [h3 [pcdata (String.sub s.title 0 10)];
-    p [pcdata (String.sub s.body 0 100)]
+   [h3 [pcdata safe_title];
+    p [pcdata safe_body]
    ]
   ]
 
@@ -314,13 +335,7 @@ let () =
     (fun () () ->
       lwt user = Lwt.return @@ Eliom_reference.Volatile.get user_info in
       lwt newest_story = Db_funs.get_newest_story () in
-      let cat_link = "https://images-na.ssl-images-amazon.com/images/I/71OhlIO9LfL._SL256_.jpg" in
-      let cat_link_2 = "https://pbs.twimg.com/profile_images/664169149002874880/z1fmxo00.jpg" in
-      let cat_link_3 = "https://pbs.twimg.com/profile_images/590966305248784384/1gX6-SY6.jpg" in
-      let style_string =
-        "width: 300px; float: left; height: 600px; margin-top: 10px; margin-bottom: 10px; " ^
-        "margin-left: 25px; border-radius: 10px; box-shadow: 5px 5px 5px grey"
-      in
+      lwt new_stories = Db_funs.get_recent_stories ~n:3 () in
       Lwt.return
         (Eliom_tools.F.html
            ~title:"muz"
@@ -343,33 +358,7 @@ let () =
              ];
 
              div ~a:[a_class ["row"]; a_style "width: 1000px; height: 600px; margin: auto"]
-             [div
-              [div ~a:[a_class ["thumbnail"]; a_style style_string]
-               [img ~a:[a_style "border-radius: 10px; margin-top: 13px"]
-                    ~alt:"Test Image 1" ~src:(Xml.uri_of_string cat_link) ();
-                div ~a:[a_class ["caption"]]
-                [h3 [pcdata "Thumbnail Label"];
-                 p [pcdata "Cras justo odio, dapibus ac facilisis in elit."]
-                ]
-               ];
-              div ~a:[a_class ["thumbnail"]; a_style style_string]
-              [img ~a:[a_style "border-radius: 10px; margin-top: 13px"]
-                   ~alt:"Test Image 1" ~src:(Xml.uri_of_string cat_link_2) ();
-                div ~a:[a_class ["caption"]]
-                [h3 [pcdata "Thumbnail Label"];
-                 p [pcdata "Cras justo odio, dapibus ac facilisis in elit."]
-                ]
-               ];
-              div ~a:[a_class ["thumbnail"]; a_style style_string]
-              [img ~a:[a_style "border-radius: 10px; margin-top: 13px"]
-                   ~alt:"Test Image 1" ~src:(Xml.uri_of_string cat_link_3) ();
-                div ~a:[a_class ["caption"]]
-                [h3 [pcdata "Thumbnail Label"];
-                 p [pcdata "Cras justo odio, dapibus ac facilisis in elit."]
-                ]
-               ];
-              ]
-             ]
+             (thumbs_of_stories new_stories)
             ]
            )
         )

@@ -326,6 +326,17 @@ let thumb_of_story ?link (s : story) =
 let thumbs_of_stories stories =
   List.map (thumb_of_story) stories
 
+(* Limit the length of a string and pad with "..." *)
+let safe_string ~max_len s =
+  if String.length s <= max_len
+  then s
+  else
+    begin
+      try (String.sub s 0 (min (String.length s) max_len)) ^ "..." with
+      | Invalid_argument "String.sub / Bytes.sub" -> "Whoops..."
+      | _ -> "Uh Oh..."
+    end
+
 (*** Register Services ***)
 
 (* Main Page Service *)
@@ -351,10 +362,14 @@ let () =
              ];
 
              div
-             [h1 ~a:[a_style "margin: 40px auto; witdh: 800px; text-align: center"]
-              [pcdata newest_story.title];
-              p ~a:[a_style "margin: auto; width: 1200px; text-align: justify"]
-              [pcdata newest_story.body]
+             [h1 ~a:[a_style "margin: 40px auto 10px; text-align: center; width: 1200px;
+                              background: white; border-radius: 10px; height: 75px;
+                              font-size: 45px; box-shadow: 5px 5px 5px grey; line-height: 70px"]
+              [pcdata (safe_string ~max_len:42 newest_story.title)];
+              p ~a:[a_style "margin: 0px auto 40px; text-align: justify; width: 1200px;
+                             background: white; border-radius: 10px; font-size: 15px;
+                             box-shadow: 5px 5px 5px grey; padding: 10px"]
+              [pcdata (safe_string ~max_len:1000 newest_story.body)]
              ];
 
              div ~a:[a_class ["row"]; a_style "width: 1000px; height: 600px; margin: auto"]

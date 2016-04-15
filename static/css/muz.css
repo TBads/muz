@@ -1,0 +1,74 @@
+@import url(http://fonts.googleapis.com/css?family=Montserrat);
+@import url(http://fonts.googleapis.com/css?family=Ewert);
+
+* {
+    font-family: 'Montserrat', sans-serif;
+}
+
+html {
+  background-image: url(new_year_background.png);
+  background-repeat: repeat;
+}
+
+#header_button  {
+  background-color: transparent;
+  border-color: transparent;
+  color: #7CFC00;
+  float: left;
+}
+
+.margin_top_50px {
+  margin-top: 50px
+}
+
+.margin_top_100px {
+  margin-top: 100px
+}
+
+.padding_top_50px {
+  padding-top: 50px
+}
+
+a {
+  color: #00FF7F !important;
+  font-weight: bold;
+}
+
+.transparent {
+  background-color: transparent
+}
+
+#login_form {
+  background-color: white;
+  /*border: 5px solid red;*/
+  width: 400px;
+  margin: 0px auto;
+  margin-top: 80px;
+}
+
+.panel {
+  background-color: transparent !important;
+  box-shadow: 0px 0px 0px transparent !important;
+}
+
+#dark_section {
+  width: 1200px;
+  height: 375px;
+  background: #634271;
+  background: linear-gradient(to top right, #333, #634271);
+  margin: 90px auto auto;
+  border-radius: 20px;
+}
+
+#main_page_header {
+  /*border: 2px solid red;*/
+  margin-top: 50px;
+  padding-top: 50px;
+  font-size: 200px;
+  font-family: 'Ewert', sans-serif;
+  /*font-weight: bold;*/
+  color: #FFFFFF;
+  text-align: center;
+  height: 300px;
+  width: 100%;
+}

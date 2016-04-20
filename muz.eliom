@@ -62,7 +62,8 @@ let new_story_service =
 let new_story_action =
   Eliom_service.Http.post_coservice' ~post_params:(string "title" **
                                                    string "body" **
-                                                   (opt (string "pic_link"))) ()
+                                                   (opt (string "pic_link")) **
+                                                    string "hashtags") ()
 
 (* User page service *)
 let user_page_service =
@@ -72,7 +73,7 @@ let user_page_service =
 
 (* Bootstrap CDN link *)
 let bootstrap_cdn_link =
-    let cdn_link = "https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css" in
+    let cdn_link = "https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css" in
       link ~rel:[`Stylesheet] ~href:(Xml.uri_of_string cdn_link)
         ()
 
@@ -226,7 +227,7 @@ let login_form =
 let new_story_form =
   Eliom_content.Html5.F.post_form ~service:new_story_action ~port:Config.port
   (
-    fun (title, (body, pic_link)) ->
+    fun (title, (body, (pic_link, hashtags))) ->
       [div ~a:[a_style "margin: auto; margin-top: 75px; width: 800px"]
        [div ~a:[a_class ["panel panel-primary"];
                 a_style "border: 1px solid #634271; width: 800px; margin: auto;
@@ -256,6 +257,14 @@ let new_story_form =
                        a_style "height: 200px"]
                    ~name:body ()
          ];
+
+         div ~a:[a_class ["panel-body"]; a_style "border-radius: 4px; background: whitesmoke"]
+         [textarea ~a:[a_class ["form-control"];
+                       a_placeholder "Hashtags";
+                       a_style "height: 40px"]
+                   ~name:hashtags ()
+         ];
+
          div ~a:[a_style "background-color: whitesmoke; padding-bottom: 15px; border-radius: 4px"]
          [button ~a:[a_class ["btn btn-lg btn-success btn-block"];
                      a_style "width: 150px; margin: auto; background-color: #634271;
@@ -373,6 +382,24 @@ let safe_string ~max_len s =
       | _ -> "Uh Oh..."
     end
 
+(* Most popular categories *)
+let most_pop_categories = [
+  li ~a:[a_class ["active"]] [pcdata "Music"];
+  li [pcdata "Books"];
+  li [pcdata "Movies"];
+  li [pcdata "Sports"];
+  li [pcdata "People"];
+  li [pcdata "Programming"];
+  li [pcdata "Dancing"]
+]
+
+let html_of_categories sl =
+  ul ~a:[a_class ["nav nav-pills nav-stacked"];
+         a_style "width: 200px; height: 400px; border: 2px solid black;
+                  float: left; margin-left: 50px; border-radius: 15px; text-align: center;
+                  padding: 10px"]
+    sl
+
 (*** Register Services ***)
 
 (* Main Page Service *)
@@ -390,6 +417,9 @@ let () =
            ~other_head:[bootstrap_cdn_link; font_awesome_cdn_link]
            (body ~a:[a_class ["transparent"]]
             [header_navbar_skeleton ~on_page:`Main user;
+
+             div [html_of_categories most_pop_categories];
+
              div ~a:[a_id "dark_section"]
              [h1 ~a:[a_id "main_page_header"] [pcdata "muz"];
               h3 ~a:[a_style "width: 800px; color: #FFFFFF; font-style: italic; margin: auto;\
@@ -602,7 +632,7 @@ let () =
   Eliom_registration.Action.register
   ~options:`Reload
   ~service:new_story_action
-  (fun () (title, (body, pic_link)) ->
+  (fun () (title, (body, (pic_link, hashtags))) ->
     (* TODO: Give success/fail message for the contact message *)
     (****** TODO: Why do these popups not work?!?! ******)
      (*lwt () = Lwt_unix.sleep 3.0 in*) (* Throttle *)
@@ -618,7 +648,7 @@ let () =
             {unit{
               Dom_html.window##alert (Js.string "Thanks for the submission!")
             }};
-          Db_funs.write_new_story user ~title ~body ~pic_link
+          Db_funs.write_new_story user ~title ~body ~pic_link ~hashtags
         end
     | false, _ ->
         begin

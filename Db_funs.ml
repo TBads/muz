@@ -17,7 +17,8 @@ type story = {
   body      : string;
   author    : string;
   pic_link  : string option;
-  date_time : string
+  date_time : string;
+  hashtags : string list;
 }
 
 (* Database *)
@@ -50,14 +51,17 @@ let sll_of_res res =
   Mysql.map res (fun a -> Array.to_list a)
   |> List.map (List.map string_of_option)
 
+let sl_of_csv s =
+  Str.split (Str.regexp "[,]") s
+
 let story_of_result sl =
   {title = List.nth sl 2;
    body = List.nth sl 3;
    author = List.nth sl 1;
    pic_link = pic_link_of_option @@ List.nth sl 4;
-   date_time = List.nth sl 5
+   date_time = List.nth sl 5;
+   hashtags = sl_of_csv (List.nth sl 6)
   }
-
 
 (* Check if the username already exists in database *)
 let username_exists new_username =
@@ -183,15 +187,24 @@ let verify_login username pwd =
   disconnect conn;
   Lwt.return verified
 
+(* Clean a users string of hashtags into a csv to be stored in the db *)
+let csv_of_hashtags hashtags =
+  Str.split (Str.regexp "[#]") hashtags
+  |> List.map (fun s -> Str.global_replace (Str.regexp "[ ]") "" s)
+  |> List.filter (fun s -> s <> "")
+  |> String.concat ","
+
 (* Write a new story to the database *)
-let write_new_story (u : user) ~title ~body ~pic_link =
+let write_new_story (u : user) ~title ~body ~pic_link ~hashtags =
   let now = string_of_int @@ int_of_float @@ Unix.time () in
   let conn = connect user_db in
   let esc s = Mysql.real_escape conn s in
   let sql_stmt =
-    "INSERT INTO muz.stories (username, title, body, pic_link, date_time)" ^ " VALUES ('" ^
+    "INSERT INTO muz.stories (username, title, body, pic_link, date_time, hashtags)" ^
+    " VALUES ('" ^
     (esc @@ string_of_option u.username) ^ "', '" ^ (esc title) ^ "', '" ^ (esc body) ^ "', '" ^
-    (esc @@ string_of_option pic_link) ^ "', '" ^ (esc now) ^ "')"
+    (esc @@ string_of_option pic_link) ^ "', '" ^ (esc now) ^ "', '" ^
+    (esc @@ csv_of_hashtags hashtags) ^ "')"
   in
   let _ = exec conn sql_stmt in
   Lwt.return @@ disconnect conn

@@ -11,7 +11,7 @@ SERVER_FILES := Db_funs.ml muz.eliom
 CLIENT_FILES := muz.eliom
 
 # OCamlfind packages for the server
-SERVER_PACKAGES := mysql safepass
+SERVER_PACKAGES := mysql safepass str
 # OCamlfind packages for the client
 CLIENT_PACKAGES :=
 

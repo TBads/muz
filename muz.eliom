@@ -69,6 +69,10 @@ let new_story_action =
 let user_page_service =
   Eliom_service.Http.service ~path:["u"] ~get_params:(suffix (string "username")) ()
 
+(* Hashtag page service *)
+let hashtag_page_service =
+  Eliom_service.Http.service ~path:["h"] ~get_params:(suffix (string "hashtag")) ()
+
 (*** Page Elements ***)
 
 (* Bootstrap CDN link *)
@@ -130,6 +134,11 @@ let user_page_button (u : user) =
       ]
     end
   | _ -> div []
+
+let hashtag_button hashtag =
+  div ~a:[a_style "color: #634271 !important; background: transparent; border: none"]
+  [a hashtag_page_service [pcdata ("#" ^ hashtag)] hashtag
+  ]
 
 let new_account_form =
   Eliom_content.Html5.F.post_form ~service:new_acct_db_service ~port:Config.port
@@ -382,22 +391,18 @@ let safe_string ~max_len s =
       | _ -> "Uh Oh..."
     end
 
-(* Most popular categories *)
-let most_pop_categories = [
-  li ~a:[a_class ["active"]] [pcdata "Music"];
-  li [pcdata "Books"];
-  li [pcdata "Movies"];
-  li [pcdata "Sports"];
-  li [pcdata "People"];
-  li [pcdata "Programming"];
-  li [pcdata "Dancing"]
-]
+(* Most popular hashtags of the last 24 hours - Limit to 10 max *)
+let most_pop_hashtags () =
+  lwt pop_htgs = Db_funs.get_recent_hashtags ~n:10 () in
+  match List.length pop_htgs with
+  | 0 -> Lwt.return []
+  | _ -> Lwt.return @@ List.map (fun s -> li [hashtag_button s]) pop_htgs
 
 let html_of_categories sl =
   ul ~a:[a_class ["nav nav-pills nav-stacked"];
          a_style "width: 200px; height: 400px; border: 2px solid black;
                   float: left; margin-left: 50px; border-radius: 15px; text-align: center;
-                  padding: 10px"]
+                  padding: 10px; box-shadow: 5px 5px 5px grey; background: #333"]
     sl
 
 (*** Register Services ***)
@@ -410,6 +415,7 @@ let () =
       lwt user = Lwt.return @@ Eliom_reference.Volatile.get user_info in
       lwt newest_story = Db_funs.get_newest_story () in
       lwt new_stories = Db_funs.get_recent_stories ~n:3 () in
+      lwt pop_hashtags = most_pop_hashtags () in
       Lwt.return
         (Eliom_tools.F.html
            ~title:"muz"
@@ -418,7 +424,7 @@ let () =
            (body ~a:[a_class ["transparent"]]
             [header_navbar_skeleton ~on_page:`Main user;
 
-             div [html_of_categories most_pop_categories];
+             div [html_of_categories pop_hashtags];
 
              div ~a:[a_id "dark_section"]
              [h1 ~a:[a_id "main_page_header"] [pcdata "muz"];
@@ -681,6 +687,29 @@ let () =
              h1 ~a:[a_style "margin-top: 100px; text-align: center"]
              [pcdata (username ^ "/home")];
              div (html_of_stories all_stories)
+            ]
+           )
+         )
+    )
+
+(* Hashtag Page Service *)
+let () =
+  Eliom_registration.Html5.register
+    ~service:hashtag_page_service
+    (fun hashtag () ->
+       let user = Eliom_reference.Volatile.get user_info in
+       let tagged_stories = Db_funs.get_stories_by_hashtag hashtag |> html_of_stories in
+       Lwt.return
+         (Eliom_tools.F.html
+           ~title:("muz/h/" ^ hashtag)
+           ~css:[["css"; "muz.css"]]
+           ~other_head:[bootstrap_cdn_link; font_awesome_cdn_link]
+           (body ~a:[a_class ["transparent"]]
+            [header_navbar_skeleton user;
+             h1 ~a:[a_style "margin-top: 100px; text-align: center"]
+             [pcdata ("hashtag = " ^ hashtag)];
+
+             div (tagged_stories)
             ]
            )
          )

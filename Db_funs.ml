@@ -239,3 +239,49 @@ let get_recent_stories ~n () =
     try query_result |> sll_of_res |> (List.map story_of_result)
     with Failure hd -> []
   )
+
+(* Given a csv of hashtags, sort the list by the highest count *)
+let rec sort_tags ?(sorted_tags = []) (tag_list : string list) =
+  match tag_list with
+  | [] -> List.rev @@ List.sort (fun x y -> compare (snd x) (snd y)) sorted_tags
+  | _ ->
+    let new_tag = List.hd tag_list in
+    let new_tag_count = List.filter (fun x -> x = new_tag) tag_list |> List.length in
+    let remaining_list = List.filter (fun x -> x <> new_tag) tag_list in
+    sort_tags ~sorted_tags:((new_tag, new_tag_count) :: sorted_tags) remaining_list
+
+(* Get n elements from a list *)
+let rec get_n ?(l_out = []) ~n l =
+  match l with
+  | [] -> List.rev l_out
+  | hd :: tl ->
+    if List.length l_out < n
+    then get_n ~l_out:(hd :: l_out) ~n tl
+    else List.rev l_out
+
+(* Get hashtags for all stories in the last 24 hours *)
+let get_recent_hashtags ~n () =
+  let conn = connect user_db in
+  let now = int_of_float @@ Unix.time () in
+  let one_day_ago = string_of_int @@ now - 86400 in
+  let sql_stmt =
+    "SELECT hashtags FROM muz.stories WHERE date_time > " ^ one_day_ago ^
+    " ORDER BY date_time DESC"
+  in
+  let query_result = exec conn sql_stmt in
+  disconnect conn;
+  let csv_tags =
+    (try query_result |> sll_of_res |> List.map (List.hd) |> List.fold_left (^) ""
+    with Failure hd -> "")
+  in
+  let sl_tags = Str.split (Str.regexp "[,]") csv_tags in
+  Lwt.return (sort_tags sl_tags |> List.map (fun (s, i) -> s) |> get_n ~n)
+
+(* Get all stories with a specific hashtag - Limit to 100 *)
+let get_stories_by_hashtag hashtag =
+  let conn = connect user_db in
+  let sql_stmt = "SELECT * FROM muz.stories WHERE hashtags LIKE '%" ^ hashtag ^ "%'" in
+  let query_result = exec conn sql_stmt in
+  disconnect conn;
+  try query_result |> sll_of_res |> (List.map story_of_result)
+  with Failure hd -> []

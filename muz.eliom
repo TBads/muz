@@ -398,12 +398,47 @@ let most_pop_hashtags () =
   | 0 -> Lwt.return []
   | _ -> Lwt.return @@ List.map (fun s -> li [hashtag_button s]) pop_htgs
 
+let most_pop_hashtag_trs () =
+  lwt pop_htgs = Db_funs.get_recent_hashtags ~n:10 () in
+  match List.length pop_htgs with
+  | 0 -> Lwt.return []
+  | _ -> Lwt.return @@ List.map (fun s -> tr[td [hashtag_button s]]) pop_htgs
+
 let html_of_categories sl =
   ul ~a:[a_class ["nav nav-pills nav-stacked"];
          a_style "width: 200px; height: 400px; border: 2px solid black;
                   float: left; margin-left: 50px; border-radius: 15px; text-align: center;
                   padding: 10px; box-shadow: 5px 5px 5px grey; background: #333"]
     sl
+
+(* Pad out remaining rows in a table if necessary *)
+let rec top_n_rows ~n l_in l_out =
+  match l_in, l_out with
+  | [], _ ->
+      if List.length l_out < n
+      then
+        top_n_rows ~n []
+        (l_out @ [tr ~a:[a_style "height: 30px"] [td [pcdata ""]]])
+      else l_out
+  | hd :: tl, _ ->
+      if List.length l_out < n
+      then top_n_rows ~n tl (l_out @ [hd])
+      else l_out
+
+let top_hashtags_table () =
+  lwt pop_htgs = Db_funs.get_recent_hashtags ~n:10 () in
+  let pop_hashtags = List.map (fun s -> hashtag_button s) pop_htgs in
+  let t_head =
+    thead [tr [th ~a:[a_class ["text-center"]; a_style "color: white"] [pcdata "Top Hashtags"]]]
+  in
+  let hashtag_trs =
+    List.map (fun hashtag -> tr ~a:[a_style "height: 30px"] [td [hashtag]]) pop_hashtags
+  in
+  let hashtag_tbl = table ~a:[a_class ["table"]] ~thead:t_head (top_n_rows ~n:10 hashtag_trs []) in
+  Lwt.return @@
+  div ~a:[a_id "hashtag_table"]
+  [div ~a:[a_class ["text-center"]] [hashtag_tbl]
+  ]
 
 (*** Register Services ***)
 
@@ -416,6 +451,7 @@ let () =
       lwt newest_story = Db_funs.get_newest_story () in
       lwt new_stories = Db_funs.get_recent_stories ~n:3 () in
       lwt pop_hashtags = most_pop_hashtags () in
+      lwt top_htgs_tbl = top_hashtags_table () in
       Lwt.return
         (Eliom_tools.F.html
            ~title:"muz"
@@ -424,7 +460,7 @@ let () =
            (body ~a:[a_class ["transparent"]]
             [header_navbar_skeleton ~on_page:`Main user;
 
-             div [html_of_categories pop_hashtags];
+             div [top_htgs_tbl];
 
              div ~a:[a_id "dark_section"]
              [h1 ~a:[a_id "main_page_header"] [pcdata "muz"];

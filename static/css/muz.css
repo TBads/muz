@@ -64,6 +64,7 @@ a {
   /*border: 2px solid red;*/
   margin-top: 50px;
   padding-top: 50px;
+  padding-right: 200px;
   font-size: 200px;
   font-family: 'Ewert', sans-serif;
   /*font-weight: bold;*/
@@ -77,9 +78,34 @@ a {
   width: 200px;
   height: 375px;
   float: left;
-  margin-left: 50px;
+  /*margin-left: 50px;*/
   border-radius: 15px;
   text-align: center;
+  /*box-shadow: 5px 5px 5px grey;*/
+  /*background: linear-gradient(to top right, #333, #634271);*/
+  margin-top: 15px;
+}
+
+#hashtag_table_title {
+  color: #00FF7F;
+  font-weight: bold;
+  font-size: 20px;
+  height: 30px;
+}
+
+#author_info {
+  background: white;
+  display: table;
+  margin: 10px auto auto auto;
+  border-radius: 10px;
   box-shadow: 5px 5px 5px grey;
-  background: linear-gradient(to top right, #333, #634271);
+}
+
+#story {
+  background: white;
+  display: table;
+  margin: auto;
+  border-radius: 10px;
+  box-shadow: 5px 5px 5px grey;
+  margin-top: 15px;
 }

@@ -312,9 +312,25 @@ let cat_or_photo so =
   | Some s -> s
   | None   -> "https://pbs.twimg.com/profile_images/664169149002874880/z1fmxo00.jpg"
 
+(* Convert a float into a formatted string *)
+let time_string f =
+  let open Unix in
+  let t = Unix.gmtime f in
+  let month = string_of_int (t.tm_mon + 1) in
+  let day = string_of_int t.tm_mday in
+  let year = string_of_int (1900 + t.tm_year) in
+  let hour, am_pm =
+    if t.tm_hour <= 11
+    then (string_of_int t.tm_hour, "am")
+    else (string_of_int (t.tm_hour - 12), "pm")
+  in
+  let min = string_of_int t.tm_min in
+  let sec = string_of_int t.tm_sec in
+  (month ^ "/" ^ day ^ "/" ^ year ^ "   " ^ hour ^ ":" ^ min ^ ":" ^ sec ^ " " ^ am_pm)
+
 (* Turn a story into html *)
 let html_of_story (s : story) =
-  div ~a:[]
+  div
   [h1 ~a:[a_style "margin: 40px auto; witdh: 800px; text-align: center"]
    [pcdata s.title];
 
@@ -322,11 +338,15 @@ let html_of_story (s : story) =
        ~alt:"Picture name goes here"
        ~src:(Xml.uri_of_string (cat_or_photo s.pic_link)) ();
 
-   p ~a:[a_style "margin: auto auto 15px; width: 1200px; text-align: left"]
-   [pcdata (s.author ^ ", " ^ s.date_time)];
+   div ~a:[a_id "author_info"]
+   [p ~a:[a_style "margin: 10px 10px 10px 10px; text-align: left"]
+    [pcdata (s.author ^ ", " ^ (time_string @@ float_of_string @@ s.date_time))]
+   ];
 
-   p ~a:[a_style "margin: auto; width: 1200px; text-align: justify"]
-   [pcdata s.body];
+   div ~a:[a_id "story"]
+   [p ~a:[a_style "margin: 10px 10px 10px 10px; width: 1200px; text-align: justify"]
+    [pcdata s.body]
+   ];
 
    div ~a:[a_style "border: 2px solid #333; height: 10px; width: 1200px; margin: 20px auto;
                     background-color: #333; border-radius: 5px"] []
@@ -428,13 +448,11 @@ let rec top_n_rows ~n l_in l_out =
 let top_hashtags_table () =
   lwt pop_htgs = Db_funs.get_recent_hashtags ~n:10 () in
   let pop_hashtags = List.map (fun s -> hashtag_button s) pop_htgs in
-  let t_head =
-    thead [tr [th ~a:[a_class ["text-center"]; a_style "color: white"] [pcdata "Top Hashtags"]]]
-  in
+  let table_title = tr ~a:[a_id "hashtag_table_title"] [td [pcdata "Top Hashtags"]] in
   let hashtag_trs =
     List.map (fun hashtag -> tr ~a:[a_style "height: 30px"] [td [hashtag]]) pop_hashtags
   in
-  let hashtag_tbl = table ~a:[a_class ["table"]] ~thead:t_head (top_n_rows ~n:10 hashtag_trs []) in
+  let hashtag_tbl = table ~a:[a_class ["table"]] (top_n_rows ~n:10 hashtag_trs [table_title]) in
   Lwt.return @@
   div ~a:[a_id "hashtag_table"]
   [div ~a:[a_class ["text-center"]] [hashtag_tbl]
@@ -460,10 +478,9 @@ let () =
            (body ~a:[a_class ["transparent"]]
             [header_navbar_skeleton ~on_page:`Main user;
 
-             div [top_htgs_tbl];
-
              div ~a:[a_id "dark_section"]
-             [h1 ~a:[a_id "main_page_header"] [pcdata "muz"];
+             [div [top_htgs_tbl];
+              h1 ~a:[a_id "main_page_header"] [pcdata "muz"];
               h3 ~a:[a_style "width: 800px; color: #FFFFFF; font-style: italic; margin: auto;\
                               text-align: center"]
               [pcdata ("News right meow")];

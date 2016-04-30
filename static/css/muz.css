@@ -109,3 +109,47 @@ a {
   box-shadow: 5px 5px 5px grey;
   margin-top: 15px;
 }
+
+#pic_upload_form {
+  margin-top: 100px;
+}
+
+#pic_upload_header {
+  background: linear-gradient(to top right, #333, #634271);
+  border-radius: 15px 15px 0px 0px;
+  color: white;
+  width: 500px;
+  height: 75px;
+  margin: auto;
+  text-align: center;
+}
+
+#pic_upload_text {
+    height: 100%;
+    text-align: center;
+    margin: auto;
+    padding-top: 15px;
+    width: 100%;
+}
+
+#pic_upload_body {
+    background: whitesmoke;
+    border: 1px solid #634271;
+    border-radius: 0px 0px 15px 15px;
+    width: 500px;
+    margin: auto;
+    height: 150px;
+}
+
+#pic_input_div {
+    margin: 20px auto;
+    padding-bottom: 10px;
+    padding-top: 10px;
+    border: 1px solid #634271;
+    border-radius: 10px;
+    width: 75%;
+    padding-left: 20%;
+}
+
+#pic_input {
+}

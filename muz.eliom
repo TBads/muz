@@ -767,3 +767,101 @@ let () =
            )
          )
     )
+
+(* TEST -- Picture upload service -- TEST *)
+
+let upload_fallback =
+  Eliom_service.Http.service
+    ~path:["upload_fallback"]
+    ~get_params:Eliom_parameter.unit
+    ()
+
+let () =
+  Eliom_registration.Html5.register
+    ~service:upload_fallback
+    (fun () () ->
+      Lwt.return
+        (Eliom_tools.F.html
+          ~title:"Upload Fallback"
+          ~css:[["css";"muz.css"]]
+          ~other_head:[bootstrap_cdn_link; font_awesome_cdn_link]
+          (body ~a:[a_class ["transparent"]]
+           [h1 [pcdata "Upload Fallback Page"]]
+          )))
+
+
+let pic_form_service =
+  Eliom_service.Http.service ~path:["pic_upload"] ~get_params:Eliom_parameter.unit ()
+
+let pic_upload_service =
+  Eliom_service.Http.post_service ~fallback:upload_fallback ~post_params:(file "pic") ()
+
+(* Picture upload form *)
+let pic_upload_form =
+  Eliom_content.Html5.F.post_form ~service:pic_upload_service ~port:Config.port
+    (
+      fun pic ->
+        [
+          div ~a:[a_id "pic_input_div"] [file_input ~a:[a_id "pic_input"] ~name:pic ()];
+
+          div ~a:[a_id ""]
+          [button ~a:[a_class ["btn btn-lg btn-success btn-block"];
+                      a_style "width: 150px; margin: auto; background-color: #634271;
+                               border-color: #634271; font-size: 16px"]
+                  ~button_type:`Submit [pcdata "Submit"]
+            ];
+        ]
+    )
+
+(* Pic Form Service *)
+let () =
+  Eliom_registration.Html5.register
+    ~service:pic_form_service
+    (fun () () ->
+      let user = Eliom_reference.Volatile.get user_info in
+      Lwt.return
+        (Eliom_tools.F.html
+          ~title:"Pic Form Service"
+          ~css:[["css";"muz.css"]]
+          ~other_head:[bootstrap_cdn_link; font_awesome_cdn_link]
+          (body ~a:[a_class ["transparent"]]
+           [header_navbar_skeleton user;
+            div ~a:[a_id "pic_upload_form"]
+              [div ~a:[a_id "pic_upload_header"]
+               [h1 ~a:[a_id "pic_upload_text"] [pcdata "Upload a picture"]];
+               div ~a:[a_id "pic_upload_body"] [pic_upload_form ()]
+            ]
+           ])))
+
+let pic_path (u : user) =
+  match u.username, u.verified with
+  | Some un, Some true -> ("user_pics/" ^ un ^ (string_of_float @@ Unix.time ()) ^ "jpg")
+  | _ -> "Error: Log in to upload a pic!"
+
+let save_pic pic pic_path =
+  (try Unix.unlink pic_path; with _ -> ());
+  Lwt_unix.link (Eliom_request_info.get_tmp_filename pic) pic_path
+
+(* TODO: Need a db function to save the pic as one that the user has uploaded *)
+
+(* Pic Upload Service *)
+let () =
+  Eliom_registration.Html5.register
+    ~service:pic_upload_service
+    (fun () pic ->
+       let user = Eliom_reference.Volatile.get user_info in
+       let pp = pic_path user in
+       lwt () =
+         match user.username, user.verified with
+           | Some un, Some true -> save_pic pic pp
+           | _ -> Lwt.return ()
+       in
+      Lwt.return
+        (Eliom_tools.F.html
+          ~title:"Pic Upload Service"
+          ~css:[["css";"muz.css"]]
+          ~other_head:[bootstrap_cdn_link; font_awesome_cdn_link]
+          (body ~a:[a_class ["transparent"]]
+             [header_navbar_skeleton user;
+            h1 [pcdata ("Pic saved in: " ^ pp)];
+           ])))

@@ -5,8 +5,6 @@
   open Eliom_parameter
 }}
 
-(* TODO: Add photos to the story type and ability of user to upload a photo for the story *)
-
 open Db_funs
 
 let user_info =
@@ -62,7 +60,7 @@ let new_story_service =
 let new_story_action =
   Eliom_service.Http.post_coservice' ~post_params:(string "title" **
                                                    string "body" **
-                                                   (opt (string "pic_link")) **
+                                                   (opt (file "pic")) **
                                                     string "hashtags") ()
 
 (* User page service *)
@@ -72,6 +70,14 @@ let user_page_service =
 (* Hashtag page service *)
 let hashtag_page_service =
   Eliom_service.Http.service ~path:["h"] ~get_params:(suffix (string "hashtag")) ()
+
+(* Form for uploading a picture *)
+let pic_form_service =
+  Eliom_service.Http.service ~path:["pic_upload"] ~get_params:Eliom_parameter.unit ()
+
+(* Service to save picture *)
+let pic_upload_service =
+  Eliom_service.Http.post_service ~fallback:main_service ~post_params:(file "pic") ()
 
 (*** Page Elements ***)
 
@@ -236,7 +242,7 @@ let login_form =
 let new_story_form =
   Eliom_content.Html5.F.post_form ~service:new_story_action ~port:Config.port
   (
-    fun (title, (body, (pic_link, hashtags))) ->
+    fun (title, (body, (pic, hashtags))) ->
       [div ~a:[a_style "margin: auto; margin-top: 75px; width: 800px"]
        [div ~a:[a_class ["panel panel-primary"];
                 a_style "border: 1px solid #634271; width: 800px; margin: auto;
@@ -253,16 +259,21 @@ let new_story_form =
                    ~name:title ()
          ];
 
+         (*
          div ~a:[a_class ["panel-body"]; a_style "border-radius: 4px; background: whitesmoke"]
          [textarea ~a:[a_class ["form-control"];
                        a_placeholder "Picture Link";
                        a_style "height: 40px"]
                    ~name:pic_link ()
          ];
+         *)
+
+         div ~a:[a_class ["panel-body"]; a_style "border-radius: 4px; background: whitesmoke"]
+         [file_input ~a:[a_id "pic_input"] ~name:pic ()];
 
          div ~a:[a_class ["panel-body"]; a_style "border-radius: 4px; background: whitesmoke"]
          [textarea ~a:[a_class ["form-control"];
-                       a_placeholder "Body";
+                       a_placeholder "Body (10 - 10,000 characters)";
                        a_style "height: 200px"]
                    ~name:body ()
          ];
@@ -328,15 +339,48 @@ let time_string f =
   let sec = string_of_int t.tm_sec in
   (month ^ "/" ^ day ^ "/" ^ year ^ "   " ^ hour ^ ":" ^ min ^ ":" ^ sec ^ " " ^ am_pm)
 
+(* Handmade Core.Core_string.split_on_chars b/c core breaks in Ocsigen *)
+let split_string_on in_string ~on =
+  (* Split the string into a list of its individual characters, as strings not characters *)
+  let list_of_string s =
+    let rec build_string_list in_string out_string_list =
+      match String.length in_string with
+      | 0 -> List.rev out_string_list
+      | _ -> build_string_list (String.sub in_string 1 ((String.length in_string) -1))
+                               ((String.sub in_string 0 1) :: out_string_list)
+    in
+    build_string_list s []
+  in
+  (* Then concatenate and split into another list based on the chars chosen *)
+  let build_final_string_list sl ~split_on =
+    let rec f curr_string curr_list remaining =
+      match List.length remaining with
+      | 0 -> List.rev (if curr_string = "" then curr_list else (curr_string :: curr_list))
+      | _ -> if List.mem (List.hd remaining) split_on
+             then f "" (curr_string :: curr_list) (List.tl remaining)
+             else f (curr_string ^ (List.hd remaining)) curr_list (List.tl remaining)
+    in
+    f "" [] sl
+  in
+  build_final_string_list (list_of_string in_string) ~split_on:on
+
 (* Turn a story into html *)
 let html_of_story (s : story) =
   div
   [h1 ~a:[a_style "margin: 40px auto; witdh: 800px; text-align: center"]
    [pcdata s.title];
 
-   img ~a:[a_style "margin: auto; display: block; max-height: 300px; max-width: 1200px"]
-       ~alt:"Picture name goes here"
-       ~src:(Xml.uri_of_string (cat_or_photo s.pic_link)) ();
+   img ~a:[a_style "margin: auto; display: block; max-height: 300px; max-width: 1200px;\
+                    border-radius: 10px; box-shadow: 5px 5px 5px grey"]
+     ~alt:"Cats are really cool"
+     ~src:(
+       match s.pic_link with
+       | Some pl ->
+         let path_list = split_string_on pl ~on:["/"] |> List.tl in
+          make_uri ~service:(Eliom_service.static_dir ()) path_list
+       | _ -> (Xml.uri_of_string (cat_or_photo None))
+     )
+   ();
 
    div ~a:[a_id "author_info"]
    [p ~a:[a_style "margin: 10px 10px 10px 10px; text-align: left"]
@@ -448,7 +492,12 @@ let rec top_n_rows ~n l_in l_out =
 let top_hashtags_table () =
   lwt pop_htgs = Db_funs.get_recent_hashtags ~n:10 () in
   let pop_hashtags = List.map (fun s -> hashtag_button s) pop_htgs in
-  let table_title = tr ~a:[a_id "hashtag_table_title"] [td [pcdata "Top Hashtags"]] in
+  let table_title =
+    tr ~a:[a_id "hashtag_table_title"]
+    [td ~a:[a_style "background: #333; border-radius: 10px 0px;"]
+     [pcdata "Top Hashtags"]
+    ]
+  in
   let hashtag_trs =
     List.map (fun hashtag -> tr ~a:[a_style "height: 30px"] [td [hashtag]]) pop_hashtags
   in
@@ -492,11 +541,17 @@ let () =
                               font-size: 45px; box-shadow: 5px 5px 5px grey; line-height: 70px"]
               [pcdata (safe_string ~max_len:42 newest_story.title)];
 
-              img ~a:[a_style "margin: auto; display: block; max-height: 300px; max-width: 1200px"]
-                  ~alt:"Picture name goes here"
-                  ~src:(Xml.uri_of_string (cat_or_photo newest_story.pic_link)) ();
+              img ~a:[a_style "margin: auto; display: block; max-height: 300px; max-width: 1200px;
+                               border-radius: 10px; box-shadow: 5px 5px 5px grey"]
+                  ~alt:"Main Story Picture"
+                  ~src:(
+                    match newest_story.pic_link with
+                    | Some pl ->
+                        let path_list = split_string_on pl ~on:["/"] |> List.tl in
+                        make_uri ~service:(Eliom_service.static_dir ()) path_list
+                    | _ -> (Xml.uri_of_string (cat_or_photo None))) ();
 
-              p ~a:[a_style "margin: 0px auto 40px; text-align: justify; width: 1200px;
+              p ~a:[a_style "margin: 20px auto 40px; text-align: justify; width: 1200px;
                              background: white; border-radius: 10px; font-size: 15px;
                              box-shadow: 5px 5px 5px grey; padding: 10px"]
               [pcdata (safe_string ~max_len:1000 newest_story.body)]
@@ -686,12 +741,21 @@ let () =
             )
            ])))
 
+let pic_path (u : user) =
+  match u.username, u.verified with
+  | Some un, Some true -> "static/user_pics/" ^ un ^ (string_of_float @@ Unix.time ()) ^ "jpg"
+  | _ -> ""
+
+let save_pic pic pic_path =
+  (try Unix.unlink pic_path; with _ -> ());
+  Lwt_unix.link (Eliom_request_info.get_tmp_filename pic) pic_path
+
 (* Write the new story to the database *)
 let () =
   Eliom_registration.Action.register
   ~options:`Reload
   ~service:new_story_action
-  (fun () (title, (body, (pic_link, hashtags))) ->
+  (fun () (title, (body, (pic, hashtags))) ->
     (* TODO: Give success/fail message for the contact message *)
     (****** TODO: Why do these popups not work?!?! ******)
      (*lwt () = Lwt_unix.sleep 3.0 in*) (* Throttle *)
@@ -700,14 +764,28 @@ let () =
     let user = Eliom_reference.Volatile.get user_info in
     let long_enough = (Lwt_bytes.length @@ Lwt_bytes.of_string body) >= 10 in
     let short_enough = (Lwt_bytes.length @@ Lwt_bytes.of_string body) <= 10_000 in
+    let pp =
+      match pic with
+      | Some _ -> pic_path user
+      | _ -> ""
+    in
+    lwt () =
+      match user.username, user.verified, pic with
+        | Some un, Some true, Some p -> save_pic p pp
+        | _ -> Lwt.return ()
+    in
     match long_enough, short_enough with
     | true, true ->
         begin
           ignore
             {unit{
               Dom_html.window##alert (Js.string "Thanks for the submission!")
-            }};
-          Db_funs.write_new_story user ~title ~body ~pic_link ~hashtags
+              }};
+          let pl = match pic with
+            | Some p -> Some pp
+            | _ -> None
+          in
+          Db_funs.write_new_story user ~title ~body ~pic_link:pl ~hashtags
         end
     | false, _ ->
         begin
@@ -768,34 +846,6 @@ let () =
          )
     )
 
-(* TEST -- Picture upload service -- TEST *)
-
-let upload_fallback =
-  Eliom_service.Http.service
-    ~path:["upload_fallback"]
-    ~get_params:Eliom_parameter.unit
-    ()
-
-let () =
-  Eliom_registration.Html5.register
-    ~service:upload_fallback
-    (fun () () ->
-      Lwt.return
-        (Eliom_tools.F.html
-          ~title:"Upload Fallback"
-          ~css:[["css";"muz.css"]]
-          ~other_head:[bootstrap_cdn_link; font_awesome_cdn_link]
-          (body ~a:[a_class ["transparent"]]
-           [h1 [pcdata "Upload Fallback Page"]]
-          )))
-
-
-let pic_form_service =
-  Eliom_service.Http.service ~path:["pic_upload"] ~get_params:Eliom_parameter.unit ()
-
-let pic_upload_service =
-  Eliom_service.Http.post_service ~fallback:upload_fallback ~post_params:(file "pic") ()
-
 (* Picture upload form *)
 let pic_upload_form =
   Eliom_content.Html5.F.post_form ~service:pic_upload_service ~port:Config.port
@@ -826,23 +876,18 @@ let () =
           ~other_head:[bootstrap_cdn_link; font_awesome_cdn_link]
           (body ~a:[a_class ["transparent"]]
            [header_navbar_skeleton user;
-            div ~a:[a_id "pic_upload_form"]
-              [div ~a:[a_id "pic_upload_header"]
-               [h1 ~a:[a_id "pic_upload_text"] [pcdata "Upload a picture"]];
-               div ~a:[a_id "pic_upload_body"] [pic_upload_form ()]
-            ]
+            match user.verified with
+            | Some true ->
+              (
+                div ~a:[a_id "pic_upload_form"]
+                [div ~a:[a_id "pic_upload_header"]
+                 [h1 ~a:[a_id "pic_upload_text"] [pcdata "Upload a picture"]];
+                 div ~a:[a_id "pic_upload_body"] [pic_upload_form ()]
+                ]
+              )
+            | _ -> h1 ~a:[a_style "margin-top: 100px; text-align: center;"]
+                   [pcdata "Error: Must be logged in to upload photos!"]
            ])))
-
-let pic_path (u : user) =
-  match u.username, u.verified with
-  | Some un, Some true -> ("user_pics/" ^ un ^ (string_of_float @@ Unix.time ()) ^ "jpg")
-  | _ -> "Error: Log in to upload a pic!"
-
-let save_pic pic pic_path =
-  (try Unix.unlink pic_path; with _ -> ());
-  Lwt_unix.link (Eliom_request_info.get_tmp_filename pic) pic_path
-
-(* TODO: Need a db function to save the pic as one that the user has uploaded *)
 
 (* Pic Upload Service *)
 let () =

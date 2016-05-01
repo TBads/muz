@@ -141,9 +141,18 @@ let user_page_button (u : user) =
     end
   | _ -> div []
 
-let hashtag_button hashtag =
-  div ~a:[a_style "color: #634271 !important; background: transparent; border: none"]
+let hashtag_button ?(extra_style = "") hashtag =
+  div
+    ~a:[a_style ("color: #634271 !important; background: transparent; border: none;" ^ extra_style)]
   [a hashtag_page_service [pcdata ("#" ^ hashtag)] hashtag
+  ]
+
+let author_button ?(extra_style = "") username =
+  div
+    ~a:[a_style ("float: left; margin: 10px 10px 10px 10px; text-align: left;
+                  color: #634271 !important; background: transparent; font-weight: bold;" ^
+                 extra_style)]
+  [a user_page_service [pcdata ("@" ^ username)] username
   ]
 
 let new_account_form =
@@ -364,6 +373,12 @@ let split_string_on in_string ~on =
   in
   build_final_string_list (list_of_string in_string) ~split_on:on
 
+(* Turn a csv string of hashtags into a list of links *)
+let hashtags_of_sl sl =
+  List.map
+    (hashtag_button ~extra_style:"float: left; margin: 10px 5px 10px 5px; background: transparent")
+    sl
+
 (* Turn a story into html *)
 let html_of_story (s : story) =
   div
@@ -383,9 +398,12 @@ let html_of_story (s : story) =
    ();
 
    div ~a:[a_id "author_info"]
-   [p ~a:[a_style "margin: 10px 10px 10px 10px; text-align: left"]
-    [pcdata (s.author ^ ", " ^ (time_string @@ float_of_string @@ s.date_time))]
+   [author_button s.author;
+    p ~a:[a_style "float: left; margin: 10px 10px 10px 10px; text-align: left"]
+    [pcdata (time_string @@ float_of_string @@ s.date_time)]
    ];
+
+   div ~a:[a_id "story_hashtags"] (hashtags_of_sl s.hashtags);
 
    div ~a:[a_id "story"]
    [p ~a:[a_style "margin: 10px 10px 10px 10px; width: 1200px; text-align: justify"]

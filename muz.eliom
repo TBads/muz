@@ -385,7 +385,7 @@ let html_of_story (s : story) =
   [h1 ~a:[a_style "margin: 40px auto; witdh: 800px; text-align: center"]
    [pcdata s.title];
 
-   img ~a:[a_style "margin: auto; display: block; max-height: 300px; max-width: 1200px;\
+   img ~a:[a_style "margin: auto; display: block; max-height: 300px; max-width: 1200px;
                     border-radius: 10px; box-shadow: 5px 5px 5px grey"]
      ~alt:"Cats are really cool"
      ~src:(
@@ -419,7 +419,7 @@ let html_of_stories stories =
   List.map html_of_story stories
 
 (* Turn a story into an html thumbnail *)
-let thumb_of_story ?link (s : story) =
+let thumb_of_story (s : story) =
   let safe_title =
     if String.length s.title <= 20
     then s.title
@@ -441,17 +441,20 @@ let thumb_of_story ?link (s : story) =
       end
   in
   let style_string =
-    "width: 300px; float: left; height: 600px; margin-top: 10px; margin-bottom: 10px; " ^
+    "width: 300px; float: left; height: 600px; margin-top: 10px; margin-bottom: 10px;" ^
     "margin-left: 25px; border-radius: 10px; box-shadow: 5px 5px 5px grey"
   in
-  let default_link =
-    match link with
-    | Some l -> l
-    | None -> "https://pbs.twimg.com/profile_images/664169149002874880/z1fmxo00.jpg"
-  in
   div ~a:[a_class ["thumbnail"]; a_style style_string]
-  [img ~a:[a_style "border-radius: 10px; margin-top: 13px"]
-       ~alt:(s.title) ~src:(Xml.uri_of_string default_link) ();
+  [img ~a:[a_style "border-radius: 10px; margin-top: 13px; max-width: 260px; max-height: 300px"]
+     ~alt:(s.title)
+     ~src:(
+       match s.pic_link with
+       | Some pl ->
+         let path_list = split_string_on pl ~on:["/"] |> List.tl in
+          make_uri ~service:(Eliom_service.static_dir ()) path_list
+       | _ -> (Xml.uri_of_string (cat_or_photo None))
+     )
+     ();
    div ~a:[a_class ["caption"]]
    [h3 [pcdata safe_title];
     p [pcdata safe_body]
@@ -550,7 +553,7 @@ let () =
               h1 ~a:[a_id "main_page_header"] [pcdata "muz"];
               h3 ~a:[a_style "width: 800px; color: #FFFFFF; font-style: italic; margin: auto;\
                               text-align: center"]
-              [pcdata ("News right meow")];
+              [pcdata ("News right meow. No clickbait. No bullshit.")];
              ];
 
              div

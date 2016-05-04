@@ -11,6 +11,8 @@ type user = {
   verified : bool option
 }
 
+(* TODO: Add a locaiton to the story. Maybe a school would be useful also. *)
+(* TODO: Add a story id for easy identification of stories *)
 (* Story type *)
 type story = {
   title     : string;

@@ -79,6 +79,14 @@ let pic_form_service =
 let pic_upload_service =
   Eliom_service.Http.post_service ~fallback:main_service ~post_params:(file "pic") ()
 
+(* Action to handle a Thumbs Up *)
+let thumbs_up_action =
+  Eliom_service.Http.post_coservice' ~post_params:(string "author" ** string "datetime") ()
+
+(* Action to handle a Thumbs Down *)
+let thumbs_down_action =
+  Eliom_service.Http.post_coservice' ~post_params:(string "author" ** string "datetime") ()
+
 (*** Page Elements ***)
 
 (* Bootstrap CDN link *)
@@ -154,6 +162,32 @@ let author_button ?(extra_style = "") username =
                  extra_style)]
   [a user_page_service [pcdata ("@" ^ username)] username
   ]
+
+let thumbs_up_button (s : story) =
+  Eliom_content.Html5.F.post_form ~service:thumbs_up_action ~port:Config.port
+  (
+    fun (author, datetime) ->
+      [
+       div ~a:[a_id "thumb"]
+       [string_input ~input_type:`Hidden ~name:author ~value:s.author ();
+        string_input ~input_type:`Hidden ~name:datetime ~value:s.date_time ();
+        button ~a:[a_class ["glyphicon glyphicon-thumbs-up"]] ~button_type:`Submit []
+       ]
+      ]
+  )
+
+let thumbs_down_button (s : story) =
+  Eliom_content.Html5.F.post_form ~service:thumbs_down_action ~port:Config.port
+  (
+    fun (author, datetime) ->
+      [
+       div ~a:[a_id "thumb"]
+       [string_input ~input_type:`Hidden ~name:author ~value:s.author ();
+        string_input ~input_type:`Hidden ~name:datetime ~value:s.date_time ();
+        button ~a:[a_class ["glyphicon glyphicon-thumbs-down"]] ~button_type:`Submit []
+       ]
+      ]
+  )
 
 let new_account_form =
   Eliom_content.Html5.F.post_form ~service:new_acct_db_service ~port:Config.port
@@ -405,6 +439,8 @@ let html_of_story (s : story) =
 
    div ~a:[a_id "story_hashtags"] (hashtags_of_sl s.hashtags);
 
+   div ~a:[a_id "thumbs"] [thumbs_up_button s (); thumbs_down_button s ()];
+
    div ~a:[a_id "story"]
    [p ~a:[a_style "margin: 10px 10px 10px 10px; width: 1200px; text-align: justify"]
     [pcdata s.body]
@@ -551,7 +587,7 @@ let () =
              div ~a:[a_id "dark_section"]
              [div [top_htgs_tbl];
               h1 ~a:[a_id "main_page_header"] [pcdata "muz"];
-              h3 ~a:[a_style "width: 800px; color: #FFFFFF; font-style: italic; margin: auto;\
+              h3 ~a:[a_style "width: 800px; color: #FFFFFF; font-style: italic; margin: auto;
                               text-align: center"]
               [pcdata ("News right meow. No clickbait. No bullshit.")];
              ];
@@ -931,3 +967,29 @@ let () =
              [header_navbar_skeleton user;
             h1 [pcdata ("Pic saved in: " ^ pp)];
            ])))
+
+(* Thumbs Up Action *)
+let () =
+  Eliom_registration.Action.register
+    ~options:`NoReload
+    ~service:thumbs_up_action
+    (fun () (author, datetime) ->
+      let user = Eliom_reference.Volatile.get user_info in
+      match user.verified with
+      | Some true ->
+          Lwt_io.print "\n\nTHUMBS UP!" (* TODO: Store the thumbs up to the database here *)
+      | _ -> Lwt.return ()
+    )
+
+(* Thumbs Down Action *)
+let () =
+  Eliom_registration.Action.register
+    ~options:`NoReload
+    ~service:thumbs_down_action
+    (fun () (author, datetime) ->
+      let user = Eliom_reference.Volatile.get user_info in
+      match user.verified with
+      | Some true ->
+          Lwt.return () (* TODO: Store the thumbs up to the database here *)
+      | _ -> Lwt.return ()
+    )

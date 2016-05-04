@@ -160,3 +160,16 @@ a {
 
 #pic_input {
 }
+
+#thumb {
+  display: table;
+  font-size: 30px;
+  float: left;
+  padding: 10px;
+}
+
+#thumbs {
+  width: 140px;
+  height: 50px;
+  margin: 5px auto;
+}

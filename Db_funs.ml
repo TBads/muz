@@ -15,12 +15,13 @@ type user = {
 (* TODO: Add a story id for easy identification of stories *)
 (* Story type *)
 type story = {
+  id        : int;
   title     : string;
   body      : string;
   author    : string;
   pic_link  : string option;
   date_time : string;
-  hashtags : string list;
+  hashtags  : string list;
 }
 
 (* Database *)
@@ -57,7 +58,8 @@ let sl_of_csv s =
   Str.split (Str.regexp "[,]") s
 
 let story_of_result sl =
-  {title = List.nth sl 2;
+  {id = int_of_string @@ List.nth sl 0;
+   title = List.nth sl 2;
    body = List.nth sl 3;
    author = List.nth sl 1;
    pic_link = pic_link_of_option @@ List.nth sl 4;
@@ -287,3 +289,46 @@ let get_stories_by_hashtag hashtag =
   disconnect conn;
   try query_result |> sll_of_res |> (List.map story_of_result)
   with Failure hd -> []
+
+(* Get the list of users who have rate a story with thumbs up / down *)
+let get_thumbs ~up_down (s : story) =
+  let ud =
+    match up_down with
+    | `Up -> "thumbs_up"
+    | `Down -> "thumbs_down"
+  in
+  let conn = connect user_db in
+  let sql_stmt =
+    "SELECT " ^ ud ^ " FROM muz.stories WHERE story_id = " ^ (string_of_int s.id)
+  in
+  let query_result = exec conn sql_stmt in
+  disconnect conn;
+  try query_result |> sll_of_res |> List.hd |> List.hd |> sl_of_csv with
+  | Failure hd -> []
+  | _ -> []
+
+(* Add a users thumbs up / down action *)
+let write_thumbs_action ~up_down ~stry username =
+  let t_up = get_thumbs ~up_down:`Up stry in
+  let t_down = get_thumbs ~up_down:`Down stry in
+  let ud =
+    match up_down with
+    | `Up -> "thumbs_up"
+    | `Down -> "thumbs_down"
+  in
+  if List.mem username t_up || List.mem username t_down
+  then ()
+  else
+   let conn = connect user_db in
+   let users =
+     match up_down with
+     | `Up -> (String.concat "," t_up) ^ "," ^ username
+     | `Down -> (String.concat "," t_down) ^ "," ^ username
+   in
+   let conn = connect user_db in
+   let sql_stmt =
+     "UPDATE muz.stories SET " ^ ud ^ " = '" ^ users ^
+     "' WHERE story_id = " ^ (string_of_int stry.id)
+   in
+   let _ = exec conn sql_stmt in
+   ()

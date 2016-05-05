@@ -81,11 +81,11 @@ let pic_upload_service =
 
 (* Action to handle a Thumbs Up *)
 let thumbs_up_action =
-  Eliom_service.Http.post_coservice' ~post_params:(string "author" ** string "datetime") ()
+  Eliom_service.Http.post_coservice' ~post_params:(int "id") ()
 
 (* Action to handle a Thumbs Down *)
 let thumbs_down_action =
-  Eliom_service.Http.post_coservice' ~post_params:(string "author" ** string "datetime") ()
+  Eliom_service.Http.post_coservice' ~post_params:(int "id") ()
 
 (*** Page Elements ***)
 
@@ -166,11 +166,10 @@ let author_button ?(extra_style = "") username =
 let thumbs_up_button (s : story) =
   Eliom_content.Html5.F.post_form ~service:thumbs_up_action ~port:Config.port
   (
-    fun (author, datetime) ->
+    fun id ->
       [
        div ~a:[a_id "thumb"]
-       [string_input ~input_type:`Hidden ~name:author ~value:s.author ();
-        string_input ~input_type:`Hidden ~name:datetime ~value:s.date_time ();
+       [int_input ~input_type:`Hidden ~name:id ~value:s.id ();
         button ~a:[a_class ["glyphicon glyphicon-thumbs-up"]] ~button_type:`Submit []
        ]
       ]
@@ -179,11 +178,10 @@ let thumbs_up_button (s : story) =
 let thumbs_down_button (s : story) =
   Eliom_content.Html5.F.post_form ~service:thumbs_down_action ~port:Config.port
   (
-    fun (author, datetime) ->
+    fun id ->
       [
        div ~a:[a_id "thumb"]
-       [string_input ~input_type:`Hidden ~name:author ~value:s.author ();
-        string_input ~input_type:`Hidden ~name:datetime ~value:s.date_time ();
+       [int_input ~input_type:`Hidden ~name:id ~value:s.id ();
         button ~a:[a_class ["glyphicon glyphicon-thumbs-down"]] ~button_type:`Submit []
        ]
       ]
@@ -973,11 +971,15 @@ let () =
   Eliom_registration.Action.register
     ~options:`NoReload
     ~service:thumbs_up_action
-    (fun () (author, datetime) ->
+    (fun () id ->
       let user = Eliom_reference.Volatile.get user_info in
-      match user.verified with
-      | Some true ->
-          Lwt_io.print "\n\nTHUMBS UP!" (* TODO: Store the thumbs up to the database here *)
+      match user.verified, user.username with
+      | Some true, Some un ->
+        Lwt.return @@ Db_funs.write_thumbs_action ~up_down:`Up ~id:(string_of_int id) un
+          (* TODO: Only allow the user to select either thumbs up or thumbs down. Not both.
+                   If one is selected, and the user chooses the other, then the choice should
+                   be reversed. *)
+          (* TODO: Change the button color based on whether the user has given a thumbs up/down *)
       | _ -> Lwt.return ()
     )
 
@@ -986,10 +988,10 @@ let () =
   Eliom_registration.Action.register
     ~options:`NoReload
     ~service:thumbs_down_action
-    (fun () (author, datetime) ->
+    (fun () id ->
       let user = Eliom_reference.Volatile.get user_info in
-      match user.verified with
-      | Some true ->
-          Lwt.return () (* TODO: Store the thumbs up to the database here *)
+      match user.verified, user.username with
+      | Some true, Some un ->
+          Lwt.return @@ Db_funs.write_thumbs_action ~up_down:`Down ~id:(string_of_int id) un
       | _ -> Lwt.return ()
     )

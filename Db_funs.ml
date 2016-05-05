@@ -291,26 +291,24 @@ let get_stories_by_hashtag hashtag =
   with Failure hd -> []
 
 (* Get the list of users who have rate a story with thumbs up / down *)
-let get_thumbs ~up_down (s : story) =
+let get_thumbs ~up_down id =
   let ud =
     match up_down with
     | `Up -> "thumbs_up"
     | `Down -> "thumbs_down"
   in
   let conn = connect user_db in
-  let sql_stmt =
-    "SELECT " ^ ud ^ " FROM muz.stories WHERE story_id = " ^ (string_of_int s.id)
-  in
+  let sql_stmt = "SELECT " ^ ud ^ " FROM muz.stories WHERE story_id = " ^ id in
   let query_result = exec conn sql_stmt in
   disconnect conn;
   try query_result |> sll_of_res |> List.hd |> List.hd |> sl_of_csv with
-  | Failure hd -> []
+  | Failure hd -> [] (* TODO: Log the error *)
   | _ -> []
 
 (* Add a users thumbs up / down action *)
-let write_thumbs_action ~up_down ~stry username =
-  let t_up = get_thumbs ~up_down:`Up stry in
-  let t_down = get_thumbs ~up_down:`Down stry in
+let write_thumbs_action ~up_down ~id username =
+  let t_up = get_thumbs ~up_down:`Up id in
+  let t_down = get_thumbs ~up_down:`Down id in
   let ud =
     match up_down with
     | `Up -> "thumbs_up"
@@ -326,9 +324,6 @@ let write_thumbs_action ~up_down ~stry username =
      | `Down -> (String.concat "," t_down) ^ "," ^ username
    in
    let conn = connect user_db in
-   let sql_stmt =
-     "UPDATE muz.stories SET " ^ ud ^ " = '" ^ users ^
-     "' WHERE story_id = " ^ (string_of_int stry.id)
-   in
+   let sql_stmt = "UPDATE muz.stories SET " ^ ud ^ " = '" ^ users ^ "' WHERE story_id = " ^ id in
    let _ = exec conn sql_stmt in
    ()

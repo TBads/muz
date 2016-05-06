@@ -305,25 +305,56 @@ let get_thumbs ~up_down id =
   | Failure hd -> [] (* TODO: Log the error *)
   | _ -> []
 
-(* Add a users thumbs up / down action *)
-let write_thumbs_action ~up_down ~id username =
-  let t_up = get_thumbs ~up_down:`Up id in
-  let t_down = get_thumbs ~up_down:`Down id in
-  let ud =
-    match up_down with
-    | `Up -> "thumbs_up"
-    | `Down -> "thumbs_down"
-  in
-  if List.mem username t_up || List.mem username t_down
+(* Remove a users thumbs up / down action *)
+let remove_thumbs_action ~up_down ~id username =
+  let existing_thumbs = get_thumbs ~up_down id in
+  if not (List.mem username existing_thumbs)
   then ()
   else
-   let conn = connect user_db in
-   let users =
-     match up_down with
-     | `Up -> (String.concat "," t_up) ^ "," ^ username
-     | `Down -> (String.concat "," t_down) ^ "," ^ username
-   in
-   let conn = connect user_db in
-   let sql_stmt = "UPDATE muz.stories SET " ^ ud ^ " = '" ^ users ^ "' WHERE story_id = " ^ id in
-   let _ = exec conn sql_stmt in
-   ()
+    let ud =
+      match up_down with
+      | `Up -> "thumbs_up"
+      | `Down -> "thumbs_down"
+    in
+    let existing_thumbs' = List.filter (fun s -> s <> username) existing_thumbs in
+    let users = String.concat "," existing_thumbs' in
+    let conn = connect user_db in
+    let sql_stmt = "UPDATE muz.stories SET " ^ ud ^ " = '" ^ users ^ "' WHERE story_id = " ^ id in
+    let _ = exec conn sql_stmt in
+    disconnect conn
+
+(* Add a users thumbs up / down action, allowing the user to reverse a prior decision *)
+let write_thumbs_action ~up_down ~id username =
+  let t_ups = get_thumbs ~up_down:`Up id in
+  let t_downs = get_thumbs ~up_down:`Down id in
+  (* Undo the existing thumbs up / down if the user changes their mind *)
+  let () =
+    match up_down with
+    | `Up ->
+      if List.mem username t_downs
+      then remove_thumbs_action ~up_down:`Down ~id username
+      else ()
+    | `Down ->
+      if List.mem username t_ups
+      then remove_thumbs_action ~up_down:`Up ~id username
+      else ()
+  in
+  (* Write the new thumbs up / down action chosen by the user *)
+  let existing_thumbs =
+    match up_down with
+    | `Up -> t_ups
+    | `Down -> t_downs
+  in
+  if List.mem username existing_thumbs
+  then ()
+  else
+    let ud =
+      match up_down with
+      | `Up -> "thumbs_up"
+      | `Down -> "thumbs_down"
+    in
+    let users = (String.concat "," existing_thumbs) ^ "," ^ username in
+    let conn = connect user_db in
+    let sql_stmt = "UPDATE muz.stories SET " ^ ud ^ " = '" ^ users ^ "' WHERE story_id = " ^ id in
+    let _ = exec conn sql_stmt in
+    disconnect conn

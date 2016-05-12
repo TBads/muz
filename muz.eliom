@@ -988,10 +988,12 @@ let () =
             h1 [pcdata ("Pic saved in: " ^ pp)];
            ])))
 
+(* TODO: When the thumbs actions are updated. The page should re-load back to the same position *)
+
 (* Thumbs Up Action *)
 let () =
   Eliom_registration.Action.register
-    ~options:`NoReload
+    ~options:`Reload
     ~service:thumbs_up_action
     (fun () id ->
       let user = Eliom_reference.Volatile.get user_info in
@@ -999,9 +1001,6 @@ let () =
       let t_downs = Db_funs.get_thumbs ~up_down:`Down (string_of_int id) in
       match user.verified, user.username with
       | Some true, Some un ->
-        let t_up = List.mem un t_ups in
-        let t_down = List.mem un t_downs in
-        (* TODO: Update the thumb color as the user clicks the buttons *)
         Lwt.return @@ Db_funs.write_thumbs_action ~up_down:`Up ~id:(string_of_int id) un
       | _ -> Lwt.return ()
     )
@@ -1009,7 +1008,7 @@ let () =
 (* Thumbs Down Action *)
 let () =
   Eliom_registration.Action.register
-    ~options:`NoReload
+    ~options:`Reload
     ~service:thumbs_down_action
     (fun () id ->
       let user = Eliom_reference.Volatile.get user_info in

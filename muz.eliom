@@ -163,26 +163,38 @@ let author_button ?(extra_style = "") username =
   [a user_page_service [pcdata ("@" ^ username)] username
   ]
 
-let thumbs_up_button (s : story) =
+let thumbs_up_button ?(picked = false) (s : story) =
+  let thumb_color =
+    match picked with
+    | true -> "color: green"
+    | false -> "color: #333"
+  in
   Eliom_content.Html5.F.post_form ~service:thumbs_up_action ~port:Config.port
   (
     fun id ->
       [
        div ~a:[a_id "thumb"]
        [int_input ~input_type:`Hidden ~name:id ~value:s.id ();
-        button ~a:[a_class ["glyphicon glyphicon-thumbs-up"]] ~button_type:`Submit []
+        button ~a:[a_class ["glyphicon glyphicon-thumbs-up"]; a_style thumb_color]
+               ~button_type:`Submit []
        ]
       ]
   )
 
-let thumbs_down_button (s : story) =
+let thumbs_down_button ?(picked = false) (s : story) =
+  let thumb_color =
+    match picked with
+    | true -> "color: red"
+    | false -> "color #333"
+  in
   Eliom_content.Html5.F.post_form ~service:thumbs_down_action ~port:Config.port
   (
     fun id ->
       [
        div ~a:[a_id "thumb"]
        [int_input ~input_type:`Hidden ~name:id ~value:s.id ();
-        button ~a:[a_class ["glyphicon glyphicon-thumbs-down"]] ~button_type:`Submit []
+        button ~a:[a_class ["glyphicon glyphicon-thumbs-down"]; a_style thumb_color]
+               ~button_type:`Submit []
        ]
       ]
   )
@@ -412,7 +424,16 @@ let hashtags_of_sl sl =
     sl
 
 (* Turn a story into html *)
-let html_of_story (s : story) =
+let html_of_story (u : user) (s : story) =
+  let t_up, t_down =
+    match u.verified, u.username with
+    | Some true, Some un ->
+      (
+        List.mem un (get_thumbs ~up_down:`Up (string_of_int s.id)),
+        List.mem un (get_thumbs ~up_down:`Down (string_of_int s.id))
+      )
+    | _, _ -> (false, false)
+  in
   div
   [h1 ~a:[a_style "margin: 40px auto; witdh: 800px; text-align: center"]
    [pcdata s.title];
@@ -437,7 +458,8 @@ let html_of_story (s : story) =
 
    div ~a:[a_id "story_hashtags"] (hashtags_of_sl s.hashtags);
 
-   div ~a:[a_id "thumbs"] [thumbs_up_button s (); thumbs_down_button s ()];
+   div ~a:[a_id "thumbs"]
+   [thumbs_up_button ~picked:t_up s (); thumbs_down_button ~picked:t_down s ()];
 
    div ~a:[a_id "story"]
    [p ~a:[a_style "margin: 10px 10px 10px 10px; width: 1200px; text-align: justify"]
@@ -449,8 +471,8 @@ let html_of_story (s : story) =
   ]
 
 (* Turn a list of stories into html *)
-let html_of_stories stories =
-  List.map html_of_story stories
+let html_of_stories (u : user) stories =
+  List.map (html_of_story u) stories
 
 (* Turn a story into an html thumbnail *)
 let thumb_of_story (s : story) =
@@ -872,7 +894,7 @@ let () =
             [header_navbar_skeleton ~on_page:`UserHome user;
              h1 ~a:[a_style "margin-top: 100px; text-align: center"]
              [pcdata (username ^ "/home")];
-             div (html_of_stories all_stories)
+             div (html_of_stories user all_stories)
             ]
            )
          )
@@ -884,7 +906,7 @@ let () =
     ~service:hashtag_page_service
     (fun hashtag () ->
        let user = Eliom_reference.Volatile.get user_info in
-       let tagged_stories = Db_funs.get_stories_by_hashtag hashtag |> html_of_stories in
+       let tagged_stories = Db_funs.get_stories_by_hashtag hashtag |> (html_of_stories user) in
        Lwt.return
          (Eliom_tools.F.html
            ~title:("muz/h/" ^ hashtag)
@@ -973,13 +995,14 @@ let () =
     ~service:thumbs_up_action
     (fun () id ->
       let user = Eliom_reference.Volatile.get user_info in
+      let t_ups = Db_funs.get_thumbs ~up_down:`Up (string_of_int id) in
+      let t_downs = Db_funs.get_thumbs ~up_down:`Down (string_of_int id) in
       match user.verified, user.username with
       | Some true, Some un ->
+        let t_up = List.mem un t_ups in
+        let t_down = List.mem un t_downs in
+        (* TODO: Update the thumb color as the user clicks the buttons *)
         Lwt.return @@ Db_funs.write_thumbs_action ~up_down:`Up ~id:(string_of_int id) un
-          (* TODO: Only allow the user to select either thumbs up or thumbs down. Not both.
-                   If one is selected, and the user chooses the other, then the choice should
-                   be reversed. *)
-          (* TODO: Change the button color based on whether the user has given a thumbs up/down *)
       | _ -> Lwt.return ()
     )
 

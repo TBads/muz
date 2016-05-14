@@ -329,6 +329,24 @@ let get_stories_by_hashtag hashtag =
   try query_result |> sll_of_res |> (List.map story_of_result)
   with Failure hd -> []
 
+(* Get all stories with a specific hood - Limit to 100 *)
+let get_stories_by_hood hood =
+  let conn = connect user_db in
+  let sql_stmt =
+    "SELECT story_id, stories.username, title, body, pic_link, date_time, hashtags, " ^
+    "thumbs_up, thumbs_down " ^
+    "FROM stories " ^
+    "INNER JOIN users ON stories.username = users.username " ^
+    "WHERE stories.username IN (" ^
+    "SELECT username FROM users " ^
+    "INNER JOIN user_location ON users.user_id = user_location.user_id " ^
+    "WHERE hood = '" ^ hood ^ "')"
+  in
+  let query_result = exec conn sql_stmt in
+  disconnect conn;
+  try query_result |> sll_of_res |> (List.map story_of_result)
+  with Failure hd -> []
+
 (* Get the location information for a user *)
 let get_user_location_info username =
   let conn = connect user_db in

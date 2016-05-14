@@ -769,7 +769,7 @@ let () =
           (
             let new_user = {
               username = Some new_username;
-              email = Some new_email;
+              email = if new_email <> "" then Some new_email else None;
               verified = Some false;
               location = {
                 country  = if country <> "" then Some country else None;
@@ -798,9 +798,21 @@ let () =
             | false, false, true, true -> "Error: Please contact exchange support."
           )
       in
-      let user = Eliom_reference.Volatile.get user_info in
       if (not username_taken) && (not email_taken) && password_verified && pwd_complexity
       then begin
+        Eliom_reference.Volatile.set user_info
+          {username = Some new_username;
+           email = if new_email <> "" then Some new_email else None;
+           verified = Some true;
+           location = {
+             country  = if country <> "" then Some country else None;
+             state = if state <> "" then Some state else None;
+             city = if city <> "" then Some city else None;
+             hood = if hood <> "" then Some hood else None;
+             school = if school <> "" then Some school else None
+           }
+          };
+        let user = Eliom_reference.Volatile.get user_info in
         Lwt.return
           (Eliom_tools.F.html
              ~title:"muz"
@@ -810,16 +822,12 @@ let () =
              [header_navbar_skeleton ~on_page:`NewAccount user;
               div ~a:[a_class ["margin_top_50px"; "padding_top_50px"]]
               [h3 ~a:[a_style "margin: auto auto 20px; text-align: center"]
-               [pcdata ("Thanks for registering! Click the button below to begin doing stuff.")];
-               div ~a:[a_id "trade_btn_1_div"]
-               [div ~a:[a_class ["btn btn-lg btn-success"]; a_id "trade_btn_1";
-                        a_style "background-color: #634271; border-color: #634271"]
-                [h1 [pcdata "A Button should go here..."]]
-               ];
-              ]
+               [pcdata ("Thanks for registering! Enjoy your muz!")];
+              ];
              ]))
       end
       else
+        let user = Eliom_reference.Volatile.get user_info in
         Lwt.return
           (Eliom_tools.F.html
              ~title:"muz"

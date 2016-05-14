@@ -8,6 +8,7 @@
 open Db_funs
 
 (* TODO: Show number of thumbs up / down next to a story *)
+(* TODO: Need a way for users to edit their info after creating an account *)
 
 let user_info =
   Eliom_reference.Volatile.eref ~scope:Eliom_common.default_session_scope ~secure:true
@@ -280,9 +281,14 @@ let new_account_form =
            ];
 
           (* Optional Location Section *)
-          div ~a:[a_style "text-align: center"] [pcdata "This section is optional."];
+
+          div ~a:[a_id "optional_section"] [];
+          div ~a:[a_style "text-align: center"] [h5 [pcdata "This section is optional."]];
           div ~a:[a_style "text-align: center; margin-bottom: 15px"]
-          [pcdata "You do NOT have to provide this information."];
+            [h5 [pcdata "You do NOT have to provide this information."];
+             h5 [pcdata ("We reccomend you at least fill out your neighborhood " ^
+                         "and/or school to see what is happening around you.")]
+            ];
 
           div ~a:[a_class ["form-group"]]
           [div ~a:[a_class ["input-group"]]
@@ -1065,6 +1071,7 @@ let () =
     ~service:hood_page_service
     (fun hood () ->
        let user = Eliom_reference.Volatile.get user_info in
+       (* TODO: Sort hood_stories by date *)
        let hood_stories = Db_funs.get_stories_by_hood hood |> (html_of_stories user) in
        Lwt.return
          (Eliom_tools.F.html

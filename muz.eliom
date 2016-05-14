@@ -221,11 +221,12 @@ let thumbs_down_button ?(picked = false) (s : story) =
   )
 
 (* Click to show stories in the users neighborhood *)
-let hood_button ?(extra_style = "") hood =
-  div
-    ~a:[a_style ("color: #634271 !important; background: transparent; border: none;" ^ extra_style)]
-  [a hood_page_service [pcdata ("$" ^ hood)] hood
-  ]
+let hood_button ?(extra_style = "") (u : user) =
+  match u.verified, u.location.hood with
+  | Some true, Some h ->
+      div ~a:[a_class ["btn btn-default btn-lg"]; a_id "header_button"]
+      [a hood_page_service [pcdata ("$" ^ h)] h]
+  | _, _ -> div []
 
 let new_account_form =
   Eliom_content.Html5.F.post_form ~service:new_acct_db_service ~port:Config.port
@@ -446,15 +447,17 @@ let header_navbar_skeleton ?(on_page = `Null) (u : user) =
   let b2 = if on_page = `Login then [] else [login_logout_button u] in
   let b3 = if on_page = `NewStory then [] else [new_story_button u] in
   let b4 = if on_page = `UserHome then [] else [user_page_button u] in
+  let b5 = if on_page = `Hood then [] else [hood_button u] in
   let btns =
     match on_page with
-    | `Main -> b1 @ b2 @ b3 @ b4
-    | `NewAccount -> b0 @ b2 @ b3 @ b4
-    | `Login -> b0 @ b1 @ b3 @ b4
-    | `Logout -> b0 @ b1 @ b2 @ b3 @ b4
-    | `NewStory -> b0 @ b1 @ b2 @ b4
-    | `UserHome -> b0 @ b2 @ b3
-    | `Null -> b0 @ b1 @ b2 @ b3 @ b4
+    | `Main -> b1 @ b2 @ b3 @ b4 @ b5
+    | `NewAccount -> b0 @ b2 @ b3 @ b4 @ b5
+    | `Login -> b0 @ b1 @ b3 @ b4 @ b5
+    | `Logout -> b0 @ b1 @ b2 @ b3 @ b4 @ b5
+    | `NewStory -> b0 @ b1 @ b2 @ b4 @ b5
+    | `UserHome -> b0 @ b2 @ b3 @ b5
+    | `Hood -> b0 @ b3 @ b4
+    | `Null -> b0 @ b1 @ b2 @ b3 @ b4 @ b5
   in
   nav ~a:[a_class ["navbar navbar-fixed-top"]; a_style "background-color: #333;"]
     [div ~a:[a_class ["container-fluid"]]

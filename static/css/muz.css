@@ -173,3 +173,10 @@ a {
   height: 50px;
   margin: 5px auto;
 }
+
+#optional_section {
+    width: 400px;
+    height: 1px;
+    background: #634271;
+    margin-left: -16px;
+}

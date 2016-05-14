@@ -688,7 +688,7 @@ let () =
               h1 ~a:[a_id "main_page_header"] [pcdata "muz"];
               h3 ~a:[a_style "width: 800px; color: #FFFFFF; font-style: italic; margin: auto;
                               text-align: center"]
-              [pcdata ("News right meow. No clickbait. No bullshit.")];
+              [pcdata ("News right meow!")];
              ];
 
              div
@@ -870,18 +870,11 @@ let () =
       if b
       then
         begin
-          (* TODO: Properly set the user location info if it exists *)
           Eliom_reference.Volatile.set user_info
             {username = Some username;
              email = None;
              verified = Some true;
-             location = {
-               country = None;
-               state = None;
-               city = None;
-               hood = None;
-               school = None
-             }
+             location = Db_funs.get_user_location_info username
             };
           Lwt.return main_service
         end

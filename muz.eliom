@@ -9,6 +9,7 @@ open Db_funs
 
 (* TODO: Show number of thumbs up / down next to a story *)
 (* TODO: Need a way for users to edit their info after creating an account *)
+(* TODO: finish configuring the favicon *)
 
 let user_info =
   Eliom_reference.Volatile.eref ~scope:Eliom_common.default_session_scope ~secure:true
@@ -195,7 +196,7 @@ let thumbs_up_button ?(picked = false) (s : story) =
   (
     fun id ->
       [
-       div ~a:[a_id "thumb"]
+       div ~a:[a_id "thumbs_up_button"]
        [int_input ~input_type:`Hidden ~name:id ~value:s.id ();
         button ~a:[a_class ["glyphicon glyphicon-thumbs-up"]; a_style thumb_color]
                ~button_type:`Submit []
@@ -213,7 +214,7 @@ let thumbs_down_button ?(picked = false) (s : story) =
   (
     fun id ->
       [
-       div ~a:[a_id "thumb"]
+       div ~a:[a_id "thumbs_down_button"]
        [int_input ~input_type:`Hidden ~name:id ~value:s.id ();
         button ~a:[a_class ["glyphicon glyphicon-thumbs-down"]; a_style thumb_color]
                ~button_type:`Submit []
@@ -462,7 +463,7 @@ let header_navbar_skeleton ?(on_page = `Null) (u : user) =
     | `Logout -> b0 @ b1 @ b2 @ b3 @ b4 @ b5
     | `NewStory -> b0 @ b1 @ b2 @ b4 @ b5
     | `UserHome -> b0 @ b2 @ b3 @ b5
-    | `Hood -> b0 @ b3 @ b4
+    | `Hood -> b0 @ b1 @ b2 @ b3 @ b4
     | `Null -> b0 @ b1 @ b2 @ b3 @ b4 @ b5
   in
   nav ~a:[a_class ["navbar navbar-fixed-top"]; a_style "background-color: #333;"]
@@ -524,13 +525,13 @@ let hashtags_of_sl sl =
 
 (* Turn a story into html *)
 let html_of_story (u : user) (s : story) =
+  let t_ups = get_thumbs ~up_down:`Up (string_of_int s.id) in
+  let t_downs = get_thumbs ~up_down:`Down (string_of_int s.id) in
+  let t_ups_count = List.length t_ups in
+  let t_downs_count = List.length t_downs in
   let t_up, t_down =
     match u.verified, u.username with
-    | Some true, Some un ->
-      (
-        List.mem un (get_thumbs ~up_down:`Up (string_of_int s.id)),
-        List.mem un (get_thumbs ~up_down:`Down (string_of_int s.id))
-      )
+    | Some true, Some un -> (List.mem un t_ups, List.mem un t_downs)
     | _, _ -> (false, false)
   in
   div
@@ -558,7 +559,16 @@ let html_of_story (u : user) (s : story) =
    div ~a:[a_id "story_hashtags"] (hashtags_of_sl s.hashtags);
 
    div ~a:[a_id "thumbs"]
-   [thumbs_up_button ~picked:t_up s (); thumbs_down_button ~picked:t_down s ()];
+   [div ~a:[a_id "thumbs_up"]
+    [thumbs_up_button ~picked:t_up s ();
+     h4 ~a:[a_id "thumbs_up_count"] [pcdata (string_of_int t_ups_count)];
+    ];
+
+    div ~a:[a_id "thumbs_down"]
+    [thumbs_down_button ~picked:t_down s ();
+     h4 ~a:[a_id "thumbs_down_count"] [pcdata (string_of_int t_downs_count)];
+    ];
+   ];
 
    div ~a:[a_id "story"]
    [p ~a:[a_style "margin: 10px 10px 10px 10px; width: 1200px; text-align: justify"]
@@ -1079,7 +1089,7 @@ let () =
            ~css:[["css"; "muz.css"]]
            ~other_head:[bootstrap_cdn_link; font_awesome_cdn_link]
            (body ~a:[a_class ["transparent"]]
-            [header_navbar_skeleton user;
+            [header_navbar_skeleton ~on_page:`Hood user;
              h1 ~a:[a_style "margin-top: 100px; text-align: center"]
              [pcdata ("hood = " ^ hood)];
              div (hood_stories)

@@ -7,9 +7,21 @@
 
 open Db_funs
 
+(* TODO: Show number of thumbs up / down next to a story *)
+
 let user_info =
   Eliom_reference.Volatile.eref ~scope:Eliom_common.default_session_scope ~secure:true
-    {username = None; email = None; verified = None}
+    {username = None;
+     email = None;
+     verified = None;
+     location = {
+       country = None;
+       state = None;
+       city = None;
+       hood = None;
+       school = None
+     }
+    }
 
 module Config =
   struct
@@ -37,7 +49,12 @@ let new_acct_db_service =
                                   ~post_params:(string "new_username" **
                                                 string "new_email" **
                                                 string "new_password" **
-                                                string "verify_new_password") ()
+                                                string "verify_new_password" **
+                                                string "country" **
+                                                string "state" **
+                                                string "city" **
+                                                string "hood" **
+                                                string "school") ()
 
 (* Login Page Service *)
 let login_service =
@@ -202,7 +219,14 @@ let thumbs_down_button ?(picked = false) (s : story) =
 let new_account_form =
   Eliom_content.Html5.F.post_form ~service:new_acct_db_service ~port:Config.port
   (
-    fun (new_username, (new_email, (new_password, verify_new_password))) ->
+    fun (new_username,
+         (new_email,
+          (new_password,
+           (verify_new_password,
+            (country,
+             (state,
+              (city,
+               (hood, school)))))))) ->
       [div ~a:[a_style "width: 600px; margin: auto"]
        [div ~a:[a_class ["panel panel-primary"];
                 a_style "border: 1px solid #634271; width: 400px; margin: auto; border-radius: 4px"]
@@ -223,16 +247,6 @@ let new_account_form =
            ]
           ];
 
-          div ~a:[a_class ["form-group"]]
-          [div ~a:[a_class ["input-group"]]
-           [Raw.span ~a:[a_class ["input-group-addon"]]
-            [Raw.span ~a:[a_class ["glyphicon glyphicon-envelope"]] []
-            ];
-            string_input ~a:[a_class ["form-control"]; a_placeholder "Email Address (optional)"]
-                         ~input_type:`Text ~name:new_email ()
-           ]
-          ];
-
            div ~a:[a_class ["form-group"]]
            [div ~a:[a_class ["input-group"]]
             [Raw.span ~a:[a_class ["input-group-addon"]]
@@ -250,6 +264,71 @@ let new_account_form =
              ];
              string_input ~a:[a_class ["form-control"]; a_placeholder "Verify Password"]
                           ~input_type:`Password ~name:verify_new_password ()
+            ]
+           ];
+
+          (* Optional Location Section *)
+          div ~a:[a_style "text-align: center"] [pcdata "This section is optional."];
+          div ~a:[a_style "text-align: center; margin-bottom: 15px"]
+          [pcdata "You do NOT have to provide this information."];
+
+          div ~a:[a_class ["form-group"]]
+          [div ~a:[a_class ["input-group"]]
+           [Raw.span ~a:[a_class ["input-group-addon"]]
+            [Raw.span ~a:[a_class ["glyphicon glyphicon-envelope"]] []
+            ];
+            string_input ~a:[a_class ["form-control"]; a_placeholder "Email Address"]
+                         ~input_type:`Text ~name:new_email ()
+           ]
+          ];
+
+           div ~a:[a_class ["form-group"]]
+           [div ~a:[a_class ["input-group"]]
+            [Raw.span ~a:[a_class ["input-group-addon"]]
+             [Raw.span ~a:[a_class ["glyphicon glyphicon-globe"]] []
+             ];
+             string_input ~a:[a_class ["form-control"]; a_placeholder "Country"]
+                          ~input_type:`Text ~name:country ()
+            ]
+           ];
+
+           div ~a:[a_class ["form-group"]]
+           [div ~a:[a_class ["input-group"]]
+            [Raw.span ~a:[a_class ["input-group-addon"]]
+             [Raw.span ~a:[a_class ["glyphicon glyphicon-globe"]] []
+             ];
+             string_input ~a:[a_class ["form-control"]; a_placeholder "State"]
+                          ~input_type:`Text ~name:state ()
+            ]
+           ];
+
+           div ~a:[a_class ["form-group"]]
+           [div ~a:[a_class ["input-group"]]
+            [Raw.span ~a:[a_class ["input-group-addon"]]
+             [Raw.span ~a:[a_class ["glyphicon glyphicon-globe"]] []
+             ];
+             string_input ~a:[a_class ["form-control"]; a_placeholder "City"]
+                          ~input_type:`Text ~name:city ()
+            ]
+           ];
+
+           div ~a:[a_class ["form-group"]]
+           [div ~a:[a_class ["input-group"]]
+            [Raw.span ~a:[a_class ["input-group-addon"]]
+             [Raw.span ~a:[a_class ["glyphicon glyphicon-home"]] []
+             ];
+             string_input ~a:[a_class ["form-control"]; a_placeholder "Hood"]
+                          ~input_type:`Text ~name:hood ()
+            ]
+           ];
+
+           div ~a:[a_class ["form-group"]]
+           [div ~a:[a_class ["input-group"]]
+            [Raw.span ~a:[a_class ["input-group-addon"]]
+             [Raw.span ~a:[a_class ["glyphicon glyphicon-education"]] []
+             ];
+             string_input ~a:[a_class ["form-control"]; a_placeholder "School"]
+                          ~input_type:`Text ~name:school ()
             ]
            ];
 
@@ -668,7 +747,15 @@ let () =
 let () =
   Eliom_registration.Html5.register
     ~service:new_acct_db_service
-    (fun () (new_username, (new_email, (new_password, verify_new_password))) ->
+    (fun ()
+      (new_username,
+       (new_email,
+        (new_password,
+         (verify_new_password,
+          (country,
+           (state,
+            (city,
+             (hood, school)))))))) ->
       (* Kick off the thread *)
       lwt username_taken = Db_funs.username_exists new_username in
       lwt email_taken =
@@ -683,10 +770,20 @@ let () =
             let new_user = {
               username = Some new_username;
               email = Some new_email;
-              verified = Some false
+              verified = Some false;
+              location = {
+                country  = if country <> "" then Some country else None;
+                state = if state <> "" then Some state else None;
+                city = if city <> "" then Some city else None;
+                hood = if hood <> "" then Some hood else None;
+                school = if school <> "" then Some school else None
+              }
             }
             in
-            let msg = Db_funs.write_new_user new_user new_password in
+            let msg =
+              try Db_funs.write_new_user new_user new_password
+              with Failure _ -> Lwt.return "Oops... Error, please notify Muz. Sorry about that."
+            in
             (* It is ok to force verified=true since it is only for pub addr creation *)
             msg
           )
@@ -765,8 +862,19 @@ let () =
       if b
       then
         begin
+          (* TODO: Properly set the user location info if it exists *)
           Eliom_reference.Volatile.set user_info
-            {username = Some username; email = None; verified = Some true};
+            {username = Some username;
+             email = None;
+             verified = Some true;
+             location = {
+               country = None;
+               state = None;
+               city = None;
+               hood = None;
+               school = None
+             }
+            };
           Lwt.return main_service
         end
       else
@@ -781,7 +889,17 @@ let () =
     (fun () () ->
       (* Kick off the thread *)
       Lwt.return @@ Eliom_reference.Volatile.set user_info
-        {username = None; email = None; verified = None}
+        {username = None;
+         email = None;
+         verified = None;
+         location = {
+           country = None;
+           state = None;
+           city = None;
+           hood = None;
+           school = None
+         }
+        }
       >>= fun () -> Lwt.return @@ Eliom_reference.Volatile.get user_info
       >>= fun user ->
       Lwt.return
@@ -833,6 +951,7 @@ let () =
   ~options:`Reload
   ~service:new_story_action
   (fun () (title, (body, (pic, hashtags))) ->
+    ignore {unit{Dom_html.window##alert (Js.string "Test")}};
     (* TODO: Give success/fail message for the contact message *)
     (****** TODO: Why do these popups not work?!?! ******)
      (*lwt () = Lwt_unix.sleep 3.0 in*) (* Throttle *)
@@ -869,16 +988,19 @@ let () =
         Lwt.return @@ ignore
           {unit{
             Dom_html.window##alert (Js.string "ERROR: Body must be at least 10 characters.")
-          }}
+            }};
+        Lwt.return ()
         end
     | _, false ->
         Lwt.return @@ ignore
           {unit{
             Dom_html.window##alert (Js.string "ERROR: Body must be less than 10,000 characters.")
-          }}
+            }};
+        Lwt.return ();
   )
 
 (* User Page Service *)
+(* TODO: Add an about me section here *)
 let () =
   Eliom_registration.Html5.register
     ~service:user_page_service

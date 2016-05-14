@@ -88,6 +88,10 @@ let user_page_service =
 let hashtag_page_service =
   Eliom_service.Http.service ~path:["h"] ~get_params:(suffix (string "hashtag")) ()
 
+(* My neighborhood service *)
+let hood_page_service =
+  Eliom_service.Http.service ~path:["hood"] ~get_params:(suffix (string "hood")) ()
+
 (* Form for uploading a picture *)
 let pic_form_service =
   Eliom_service.Http.service ~path:["pic_upload"] ~get_params:Eliom_parameter.unit ()
@@ -215,6 +219,13 @@ let thumbs_down_button ?(picked = false) (s : story) =
        ]
       ]
   )
+
+(* Click to show stories in the users neighborhood *)
+let hood_button ?(extra_style = "") hood =
+  div
+    ~a:[a_style ("color: #634271 !important; background: transparent; border: none;" ^ extra_style)]
+  [a hood_page_service [pcdata ("$" ^ hood)] hood
+  ]
 
 let new_account_form =
   Eliom_content.Html5.F.post_form ~service:new_acct_db_service ~port:Config.port
@@ -1039,8 +1050,29 @@ let () =
             [header_navbar_skeleton user;
              h1 ~a:[a_style "margin-top: 100px; text-align: center"]
              [pcdata ("hashtag = " ^ hashtag)];
-
              div (tagged_stories)
+            ]
+           )
+         )
+    )
+
+(* Hood Page Service *)
+let () =
+  Eliom_registration.Html5.register
+    ~service:hood_page_service
+    (fun hood () ->
+       let user = Eliom_reference.Volatile.get user_info in
+       let hood_stories = Db_funs.get_stories_by_hood hood |> (html_of_stories user) in
+       Lwt.return
+         (Eliom_tools.F.html
+           ~title:("muz/hood/" ^ hood)
+           ~css:[["css"; "muz.css"]]
+           ~other_head:[bootstrap_cdn_link; font_awesome_cdn_link]
+           (body ~a:[a_class ["transparent"]]
+            [header_navbar_skeleton user;
+             h1 ~a:[a_style "margin-top: 100px; text-align: center"]
+             [pcdata ("hood = " ^ hood)];
+             div (hood_stories)
             ]
            )
          )

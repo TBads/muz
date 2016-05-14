@@ -161,17 +161,34 @@ a {
 #pic_input {
 }
 
-#thumb {
-  display: table;
-  font-size: 30px;
-  float: left;
-  padding: 10px;
+#thumbs {
+    width: 100%;
+    height: 50px;
+    margin: 5px auto;
 }
 
-#thumbs {
-  width: 140px;
-  height: 50px;
-  margin: 5px auto;
+#thumbs_up_button {
+    display: table;
+    font-size: 30px;
+    float: right;
+    padding: 10px;
+}
+
+#thumbs_down_button {
+    display: table;
+    font-size: 30px;
+    float: left;
+    padding: 10px;
+}
+
+#thumbs_up {
+    width: 50%;
+    float: left;
+}
+
+#thumbs_down {
+    width: 50%;
+    float: right;
 }
 
 #optional_section {
@@ -179,4 +196,22 @@ a {
     height: 1px;
     background: #634271;
     margin-left: -16px;
+}
+
+#thumbs_up_count {
+    float: right;
+    border: 2px solid black;
+    border-radius: 5px;
+    background: white;
+    padding: 5px 10px 5px 10px;
+    margin-top: 12px;
+}
+
+#thumbs_down_count {
+    float: left;
+    border: 2px solid black;
+    border-radius: 5px;
+    background: white;
+    padding: 5px 10px 5px 10px;
+    margin-top: 12px;
 }

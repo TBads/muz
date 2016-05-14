@@ -68,15 +68,23 @@ let sll_of_res res =
 let sl_of_csv s =
   Str.split (Str.regexp "[,]") s
 
-let story_of_result sl =
-  {id = int_of_string @@ List.nth sl 0;
-   title = List.nth sl 2;
-   body = List.nth sl 3;
-   author = List.nth sl 1;
-   pic_link = pic_link_of_option @@ List.nth sl 4;
-   date_time = List.nth sl 5;
-   hashtags = sl_of_csv (List.nth sl 6)
-  }
+let story_of_result sl = {
+  id = int_of_string @@ List.nth sl 0;
+  title = List.nth sl 2;
+  body = List.nth sl 3;
+  author = List.nth sl 1;
+  pic_link = pic_link_of_option @@ List.nth sl 4;
+  date_time = List.nth sl 5;
+  hashtags = sl_of_csv (List.nth sl 6)
+}
+
+let location_of_result sl = {
+  country = if List.nth sl 0 = "" then None else Some (List.nth sl 0);
+  state = if List.nth sl 1 = "" then None else Some (List.nth sl 1);
+  city = if List.nth sl 2 = "" then None else Some (List.nth sl 2);
+  hood = if List.nth sl 3 = "" then None else Some (List.nth sl 3);
+  school = if List.nth sl 4 = "" then None else Some (List.nth sl 4)
+}
 
 (* Check if the username already exists in database *)
 let username_exists new_username =
@@ -251,6 +259,7 @@ let get_newest_story () =
   let max_id = query_result_1 |> sll_of_res |> List.hd |> List.hd in
   let sql_stmt_2 = "SELECT * FROM muz.stories WHERE story_id = " ^ max_id in
   let res = exec conn sql_stmt_2 |> sll_of_res |> List.hd in
+  disconnect conn;
   Lwt.return @@ story_of_result res
 
 (* Get a stories for a single user *)
@@ -321,7 +330,19 @@ let get_stories_by_hashtag hashtag =
   with Failure hd -> []
 
 (* Get the location information for a user *)
-let get_user_location_info user_id = ()
+let get_user_location_info username =
+  let conn = connect user_db in
+  let sql_stmt =
+    "SELECT country, state, city, hood, school FROM users " ^
+    "INNER JOIN user_location ON users.user_id = user_location.user_id " ^
+    "WHERE username = '" ^ username ^ "'"
+  in
+  let res =
+    try exec conn sql_stmt |> sll_of_res |> List.hd |> location_of_result
+    with _ -> {country = None; state = None; city = None; hood = None; school = None}
+  in
+  disconnect conn;
+  res
 
 (* Get the list of users who have rate a story with thumbs up / down *)
 let get_thumbs ~up_down id =

@@ -4,15 +4,26 @@ open Mysql
 
 let (>>=) = Lwt.bind
 
+(* TODO Need query to get a users location from the db *)
+(* Location type *)
+type location = {
+  country : string option;
+  state : string option;
+  city : string option;
+  hood : string option;
+  school : string option
+}
+
 (* User type *)
 type user = {
   username : string option;
   email    : string option;
-  verified : bool option
+  verified : bool option;
+  location : location
 }
 
-(* TODO: Add a locaiton to the story. Maybe a school would be useful also. *)
-(* TODO: Add a story id for easy identification of stories *)
+(* TODO: Add a gps cooridate type and a gps location to the story post *)
+
 (* Story type *)
 type story = {
   id        : int;
@@ -165,6 +176,25 @@ let write_new_user (u : user) pwd =
                 (esc pwd') ^ "')"
               in
               let _ = exec conn sql_stmt in
+              let user_id_sql_stmt =
+                "SELECT user_id FROM muz.users WHERE username = '" ^ (esc @@ g u.username) ^ "'"
+              in
+              let user_id_query_result = exec conn user_id_sql_stmt in
+              let user_id =
+                try user_id_query_result |> sll_of_res |> List.hd |> List.hd
+                (* TODO: log an error here *)
+                with Failure hd -> raise (Failure "user_id not found")
+              in
+              let location_sql_stmt =
+                "INSERT INTO muz.user_location (user_id, country, state, city, hood, school)" ^
+                "VALUES('" ^ user_id ^ "', '" ^
+                (esc @@ g u.location.country) ^ "', '" ^
+                (esc @@ g u.location.state) ^ "', '" ^
+                (esc @@ g u.location.city) ^ "', '" ^
+                (esc @@ g u.location.hood) ^ "', '" ^
+                (esc @@ g u.location.school) ^ "')"
+              in
+              let _ = exec conn location_sql_stmt in
               disconnect conn |> fun () -> Lwt.return "Username successfully created"
           )
       )
@@ -289,6 +319,9 @@ let get_stories_by_hashtag hashtag =
   disconnect conn;
   try query_result |> sll_of_res |> (List.map story_of_result)
   with Failure hd -> []
+
+(* Get the location information for a user *)
+let get_user_location_info user_id = ()
 
 (* Get the list of users who have rate a story with thumbs up / down *)
 let get_thumbs ~up_down id =

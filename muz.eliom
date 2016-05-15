@@ -234,18 +234,53 @@ let hood_button ?(extra_style = "") (u : user) =
       [a hood_page_service [pcdata ("$" ^ h)] h]
   | _, _ -> div []
 
-(* TODO: make this link to a specific page that only contains the story *)
-let image_button =
+(* Handmade Core.Core_string.split_on_chars b/c core breaks in Ocsigen *)
+let split_string_on in_string ~on =
+  (* Split the string into a list of its individual characters, as strings not characters *)
+  let list_of_string s =
+    let rec build_string_list in_string out_string_list =
+      match String.length in_string with
+      | 0 -> List.rev out_string_list
+      | _ -> build_string_list (String.sub in_string 1 ((String.length in_string) -1))
+                               ((String.sub in_string 0 1) :: out_string_list)
+    in
+    build_string_list s []
+  in
+  (* Then concatenate and split into another list based on the chars chosen *)
+  let build_final_string_list sl ~split_on =
+    let rec f curr_string curr_list remaining =
+      match List.length remaining with
+      | 0 -> List.rev (if curr_string = "" then curr_list else (curr_string :: curr_list))
+      | _ -> if List.mem (List.hd remaining) split_on
+             then f "" (curr_string :: curr_list) (List.tl remaining)
+             else f (curr_string ^ (List.hd remaining)) curr_list (List.tl remaining)
+    in
+    f "" [] sl
+  in
+  build_final_string_list (list_of_string in_string) ~split_on:on
+
+(* Insert a cat link if the user does not upload a story photo *)
+let cat_or_photo so =
+  match so with
+  | Some s -> s
+  | None   -> "https://pbs.twimg.com/profile_images/664169149002874880/z1fmxo00.jpg"
+
+(* Image link to a single story page service *)
+let single_story_image_button (s : story) =
   div ~a:[]
-  [a user_page_service
-   [img ~a:[a_style "margin: auto; display: block; max-height: 300px; max-width: 1200px;
-                     border-radius: 10px; box-shadow: 5px 5px 5px grey"]
-        ~alt:"TEST IMAGE BUTTON"
-        ~src:(Xml.uri_of_string
-                "https://pbs.twimg.com/profile_images/664169149002874880/z1fmxo00.jpg")
-    ()
+  [a single_story_page_service
+   [img ~a:[a_style "border-radius: 10px; margin-top: 13px; max-width: 260px; max-height: 300px"]
+     ~alt:(s.title)
+     ~src:(
+       match s.pic_link with
+       | Some pl ->
+         let path_list = split_string_on pl ~on:["/"] |> List.tl in
+          make_uri ~service:(Eliom_service.static_dir ()) path_list
+       | _ -> (Xml.uri_of_string (cat_or_photo None))
+     )
+     ()
    ]
-   "test_user_1"
+   (string_of_int s.id)
   ]
 
 let new_account_form =
@@ -428,15 +463,6 @@ let new_story_form =
                    ~name:title ()
          ];
 
-         (*
-         div ~a:[a_class ["panel-body"]; a_style "border-radius: 4px; background: whitesmoke"]
-         [textarea ~a:[a_class ["form-control"];
-                       a_placeholder "Picture Link";
-                       a_style "height: 40px"]
-                   ~name:pic_link ()
-         ];
-         *)
-
          div ~a:[a_class ["panel-body"]; a_style "border-radius: 4px; background: whitesmoke"]
          [file_input ~a:[a_id "pic_input"] ~name:pic ()];
 
@@ -489,12 +515,6 @@ let header_navbar_skeleton ?(on_page = `Null) (u : user) =
     [div ~a:[a_class ["container-fluid"]]
      [div ~a:[a_class ["navbar-header"]; a_style "width: 100%"] btns]]
 
-(* Insert a cat link if the user does not upload a story photo *)
-let cat_or_photo so =
-  match so with
-  | Some s -> s
-  | None   -> "https://pbs.twimg.com/profile_images/664169149002874880/z1fmxo00.jpg"
-
 (* Convert a float into a formatted string *)
 let time_string f =
   let open Unix in
@@ -510,31 +530,6 @@ let time_string f =
   let min = string_of_int t.tm_min in
   let sec = string_of_int t.tm_sec in
   (month ^ "/" ^ day ^ "/" ^ year ^ "   " ^ hour ^ ":" ^ min ^ ":" ^ sec ^ " " ^ am_pm)
-
-(* Handmade Core.Core_string.split_on_chars b/c core breaks in Ocsigen *)
-let split_string_on in_string ~on =
-  (* Split the string into a list of its individual characters, as strings not characters *)
-  let list_of_string s =
-    let rec build_string_list in_string out_string_list =
-      match String.length in_string with
-      | 0 -> List.rev out_string_list
-      | _ -> build_string_list (String.sub in_string 1 ((String.length in_string) -1))
-                               ((String.sub in_string 0 1) :: out_string_list)
-    in
-    build_string_list s []
-  in
-  (* Then concatenate and split into another list based on the chars chosen *)
-  let build_final_string_list sl ~split_on =
-    let rec f curr_string curr_list remaining =
-      match List.length remaining with
-      | 0 -> List.rev (if curr_string = "" then curr_list else (curr_string :: curr_list))
-      | _ -> if List.mem (List.hd remaining) split_on
-             then f "" (curr_string :: curr_list) (List.tl remaining)
-             else f (curr_string ^ (List.hd remaining)) curr_list (List.tl remaining)
-    in
-    f "" [] sl
-  in
-  build_final_string_list (list_of_string in_string) ~split_on:on
 
 (* Turn a csv string of hashtags into a list of links *)
 let hashtags_of_sl sl =
@@ -629,16 +624,7 @@ let thumb_of_story (s : story) =
     "margin-left: 25px; border-radius: 10px; box-shadow: 5px 5px 5px grey"
   in
   div ~a:[a_class ["thumbnail"]; a_style style_string]
-  [img ~a:[a_style "border-radius: 10px; margin-top: 13px; max-width: 260px; max-height: 300px"]
-     ~alt:(s.title)
-     ~src:(
-       match s.pic_link with
-       | Some pl ->
-         let path_list = split_string_on pl ~on:["/"] |> List.tl in
-          make_uri ~service:(Eliom_service.static_dir ()) path_list
-       | _ -> (Xml.uri_of_string (cat_or_photo None))
-     )
-     ();
+  [single_story_image_button s;
    div ~a:[a_class ["caption"]]
    [h3 [pcdata safe_title];
     p [pcdata safe_body]

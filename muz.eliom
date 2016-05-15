@@ -698,6 +698,12 @@ let top_hashtags_table () =
   [div ~a:[a_class ["text-center"]] [hashtag_tbl]
   ]
 
+let left_banner ~alt link pic_path =
+  div
+  [Raw.a ~a:[a_href (Xml.uri_of_string link)]
+   [img ~a:[a_id "left_ad_banner"] ~alt ~src:(Xml.uri_of_string pic_path) ()]
+  ]
+
 (*** Register Services ***)
 
 (* Main Page Service *)
@@ -1122,10 +1128,23 @@ let () =
            ~css:[["css"; "muz.css"]]
            ~other_head:[bootstrap_cdn_link; font_awesome_cdn_link]
            (body ~a:[a_class ["transparent"]]
-             [header_navbar_skeleton ~on_page:`SingleStory user;
+            [header_navbar_skeleton ~on_page:`SingleStory user;
              h1 ~a:[a_style "margin-top: 100px; text-align: center"]
              [pcdata ("story = " ^ story_title)];
-             story_html;
+
+             (* LEFT BANNER DIV*)
+             div ~a:[a_id "left_banner"]
+             [left_banner
+                ~alt:"Charity Water"
+                "http://charitywater.org/whywater"
+                "//d11sa1anfvm2xk.cloudfront.net/media/banners/1_jerry.jpg";
+             ];
+
+              (* CENTER CONTENT DIV *)
+              div ~a:[a_id "center_content"] [story_html];
+
+             (* RIGHT BANNER DIV *)
+             div ~a:[a_id "right_banner"] []
             ]
            )
          )

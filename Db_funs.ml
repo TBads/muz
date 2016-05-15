@@ -314,8 +314,15 @@ let get_recent_hashtags ~n () =
   let query_result = exec conn sql_stmt in
   disconnect conn;
   let csv_tags =
-    (try query_result |> sll_of_res |> List.map (List.hd) |> List.fold_left (^) ""
-    with Failure hd -> "")
+    (
+      try
+        query_result |>
+        sll_of_res |>
+        List.map (fun sl -> List.hd sl |> (fun s -> s ^ ",")) |>
+        List.fold_left (^) ""
+      with
+        Failure hd -> ""
+    )
   in
   let sl_tags = Str.split (Str.regexp "[,]") csv_tags in
   Lwt.return (sort_tags sl_tags |> List.map (fun (s, i) -> s) |> get_n ~n)

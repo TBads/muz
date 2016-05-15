@@ -262,6 +262,19 @@ let get_newest_story () =
   disconnect conn;
   Lwt.return @@ story_of_result res
 
+(* Get a single story from the database, return Some story, or None *)
+let get_story story_id =
+  let conn = connect user_db in
+  let sql_stmt = "SELECT * FROM muz.stories WHERE story_id = " ^ story_id in
+  let res =
+    try
+      exec conn sql_stmt |> sll_of_res |> List.hd |> (fun s -> Some (story_of_result s))
+    with
+      Failure _ -> None
+  in
+  disconnect conn;
+  Lwt.return @@ res
+
 (* Get a stories for a single user *)
 let get_all_stories username =
   let conn = connect user_db in

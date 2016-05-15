@@ -215,3 +215,28 @@ a {
     padding: 5px 10px 5px 10px;
     margin-top: 12px;
 }
+
+#left_ad_banner {
+    border: 1px solid black;
+    border-radius: 10px;
+}
+
+#left_banner {
+    width: 20%;
+    height: 100%;
+    float: left;
+    text-align: center;
+}
+
+#center_content {
+    width: 60%;
+    height: 100%;
+    float: left;
+}
+
+#right_banner {
+    width: 20%;
+    height: 100%;
+    float: right;
+    text-align: center;
+}

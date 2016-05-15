@@ -94,6 +94,10 @@ let hashtag_page_service =
 let hood_page_service =
   Eliom_service.Http.service ~path:["hood"] ~get_params:(suffix (string "hood")) ()
 
+(* Service to display a single story *)
+let single_story_page_service =
+  Eliom_service.Http.service ~path:["s"] ~get_params:(suffix (string "story_id")) ()
+
 (* Form for uploading a picture *)
 let pic_form_service =
   Eliom_service.Http.service ~path:["pic_upload"] ~get_params:Eliom_parameter.unit ()
@@ -229,6 +233,20 @@ let hood_button ?(extra_style = "") (u : user) =
       div ~a:[a_class ["btn btn-default btn-lg"]; a_id "header_button"]
       [a hood_page_service [pcdata ("$" ^ h)] h]
   | _, _ -> div []
+
+(* TODO: make this link to a specific page that only contains the story *)
+let image_button =
+  div ~a:[]
+  [a user_page_service
+   [img ~a:[a_style "margin: auto; display: block; max-height: 300px; max-width: 1200px;
+                     border-radius: 10px; box-shadow: 5px 5px 5px grey"]
+        ~alt:"TEST IMAGE BUTTON"
+        ~src:(Xml.uri_of_string
+                "https://pbs.twimg.com/profile_images/664169149002874880/z1fmxo00.jpg")
+    ()
+   ]
+   "test_user_1"
+  ]
 
 let new_account_form =
   Eliom_content.Html5.F.post_form ~service:new_acct_db_service ~port:Config.port
@@ -464,6 +482,7 @@ let header_navbar_skeleton ?(on_page = `Null) (u : user) =
     | `NewStory -> b0 @ b1 @ b2 @ b4 @ b5
     | `UserHome -> b0 @ b2 @ b3 @ b5
     | `Hood -> b0 @ b1 @ b2 @ b3 @ b4
+    | `SingleStory -> b0 @ b1 @ b2 @ b3 @ b4 @ b5
     | `Null -> b0 @ b1 @ b2 @ b3 @ b4 @ b5
   in
   nav ~a:[a_class ["navbar navbar-fixed-top"]; a_style "background-color: #333;"]
@@ -1093,6 +1112,34 @@ let () =
              h1 ~a:[a_style "margin-top: 100px; text-align: center"]
              [pcdata ("hood = " ^ hood)];
              div (hood_stories)
+            ]
+           )
+         )
+    )
+
+(* Single Story Page Service *)
+let () =
+  Eliom_registration.Html5.register
+    ~service:single_story_page_service
+    (fun story_id () ->
+       let user = Eliom_reference.Volatile.get user_info in
+       lwt stry = get_story story_id in
+       let story_html, story_id, story_title =
+         match stry with
+         | Some s -> (html_of_story user s, string_of_int s.id, s.title)
+         | None ->
+           (h3 ~a:[a_style "text-align: center"] [pcdata "Story Not Found"], "", "Story Not Found")
+       in
+       Lwt.return
+         (Eliom_tools.F.html
+           ~title:("muz/story/" ^ story_id)
+           ~css:[["css"; "muz.css"]]
+           ~other_head:[bootstrap_cdn_link; font_awesome_cdn_link]
+           (body ~a:[a_class ["transparent"]]
+             [header_navbar_skeleton ~on_page:`SingleStory user;
+             h1 ~a:[a_style "margin-top: 100px; text-align: center"]
+             [pcdata ("story = " ^ story_title)];
+             story_html;
             ]
            )
          )

@@ -777,7 +777,14 @@ let () =
              [pcdata ("<iframe scrolling=\"no\" style=\"border: 0; width: 468px; " ^
                       "height: 60px;\" src=\"//ads.bcsyndication.com/get.php?s=23357\">" ^
                       "</iframe>")
-             ]
+             ];
+
+             (* Raw attempt *)
+             let module Html5 = Eliom_content.Html5.F in
+             let raw_attempt =
+               << <iframe src="//ads.bcsyndication.com/get.php?s=23357"></iframe> >>
+             in
+             raw_attempt
 
              ]
            )

@@ -771,7 +771,13 @@ let () =
                (thumbs_of_stories new_stories);
 
              (* Prove that I own the website *)
-             Html5.C.node {{iframe_div ()}}
+             Html5.C.node {{iframe_div ()}};
+
+             div
+             [pcdata ("<iframe scrolling=\"no\" style=\"border: 0; width: 468px; " ^
+                      "height: 60px;\" src=\"//ads.bcsyndication.com/get.php?s=23357\">" ^
+                      "</iframe>")
+             ]
 
              ]
            )

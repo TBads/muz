@@ -10,6 +10,7 @@ open Db_funs
 (* TODO: Show number of thumbs up / down next to a story *)
 (* TODO: Need a way for users to edit their info after creating an account *)
 (* TODO: finish configuring the favicon *)
+(* TODO: Add Settings page so that users can add their own advertising links *)
 
 let user_info =
   Eliom_reference.Volatile.eref ~scope:Eliom_common.default_session_scope ~secure:true
@@ -704,6 +705,18 @@ let left_banner ~alt link pic_path =
    [img ~a:[a_id "left_ad_banner"] ~alt ~src:(Xml.uri_of_string pic_path) ()]
   ]
 
+(* Create a iFrame to verify the muz.today for BitClick *)
+{client{
+   let iframe_div () =
+     let js_div = Dom_html.createDiv Dom_html.document in
+     let iframe_str =
+       "<iframe scrolling=\"no\" style=\"border: 0; width: 468px; height: 60px;\" " ^
+       "src=\"//ads.bcsyndication.com/get.php?s=23357\"></iframe>"
+     in
+     js_div##innerHTML <- (Js.string iframe_str);
+     Eliom_content.Html5.Of_dom.of_element @@ Dom_html.element js_div
+}}
+
 (*** Register Services ***)
 
 (* Main Page Service *)
@@ -755,8 +768,12 @@ let () =
              ];
 
              div ~a:[a_class ["row"]; a_style "width: 1000px; height: 600px; margin: auto"]
-             (thumbs_of_stories new_stories)
-            ]
+               (thumbs_of_stories new_stories);
+
+             (* Prove that I own the website *)
+             Html5.C.node {{iframe_div ()}}
+
+             ]
            )
         )
     )
@@ -1215,7 +1232,8 @@ let () =
             h1 [pcdata ("Pic saved in: " ^ pp)];
            ])))
 
-(* TODO: When the thumbs actions are updated. The page should re-load back to the same position *)
+(* TODO: When the thumbs actions are updated. The counts should be adjusted and the colors *)
+(*       changed, but the page should not be reloaded                                      *)
 
 (* Thumbs Up Action *)
 let () =

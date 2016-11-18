@@ -270,7 +270,7 @@ let cat_or_photo so =
 let single_story_image_button (s : story) =
   div ~a:[]
   [a single_story_page_service
-   [img ~a:[a_style "border-radius: 10px; margin-top: 13px; max-width: 260px; max-height: 300px"]
+   [img ~a:[a_style "border-radius: 10px; width: 200px; height: 200px"]
      ~alt:(s.title)
      ~src:(
        match s.pic_link with
@@ -600,37 +600,12 @@ let html_of_stories (u : user) stories =
 
 (* Turn a story into an html thumbnail *)
 let thumb_of_story (s : story) =
-  let safe_title =
-    if String.length s.title <= 20
-    then s.title
-    else
-      begin
-        try (String.sub s.title 0 (min (String.length s.title) 20)) ^ "..." with
-        | Invalid_argument "String.sub / Bytes.sub" -> "Untitled..."
-        | _ -> "Title Error..."
-      end
-  in
-  let safe_body =
-    if String.length s.body <= 375
-    then s.body
-    else
-      begin
-        try (String.sub s.body 0 (min (String.length s.body) 375)) ^ "..." with
-        | Invalid_argument "String.sub / Bytes.sub" -> "Nothin here..."
-        | _ -> "Something went wrong..."
-      end
-  in
   let style_string =
-    "width: 300px; float: left; height: 600px; margin-top: 10px; margin-bottom: 10px;" ^
-    "margin-left: 25px; border-radius: 10px; box-shadow: 5px 5px 5px grey"
+    "float: left; margin: 10px; border-radius: 10px; box-shadow: 5px 5px 5px grey;" ^
+    "background: linear-gradient(to top right, #333, #634271); border: black"
   in
   div ~a:[a_class ["thumbnail"]; a_style style_string]
-  [single_story_image_button s;
-   div ~a:[a_class ["caption"]]
-   [h3 [pcdata safe_title];
-    p [pcdata safe_body]
-   ]
-  ]
+  [single_story_image_button s]
 
 (* Turn a list of stories into a list of thumbnails *)
 let thumbs_of_stories stories =
@@ -731,7 +706,7 @@ let () =
       lwt top_htgs_tbl = top_hashtags_table () in
       Lwt.return
         (Eliom_tools.F.html
-           ~title:"muz"
+           ~title:"uz"
            ~css:[["css";"muz.css"]]
            ~other_head:[bootstrap_cdn_link; font_awesome_cdn_link]
            (body ~a:[a_class ["transparent"]]
@@ -740,9 +715,6 @@ let () =
              div ~a:[a_id "dark_section"]
              [div [top_htgs_tbl];
               h1 ~a:[a_id "main_page_header"] [pcdata "muz"];
-              h3 ~a:[a_style "width: 800px; color: #FFFFFF; font-style: italic; margin: auto;
-                              text-align: center"]
-              [pcdata ("News right meow!")];
              ];
 
              div
@@ -771,20 +743,14 @@ let () =
                (thumbs_of_stories new_stories);
 
              (* Prove that I own the website *)
-             Html5.C.node {{iframe_div ()}};
-
-             div
-             [pcdata ("<iframe scrolling=\"no\" style=\"border: 0; width: 468px; " ^
-                      "height: 60px;\" src=\"//ads.bcsyndication.com/get.php?s=23357\">" ^
-                      "</iframe>")
-             ];
+             (*Html5.C.node {{iframe_div ()}};*)
 
              (* Raw attempt *)
-             let module Html5 = Eliom_content.Html5.F in
+             (*let module Html5 = Eliom_content.Html5.F in
              let raw_attempt =
                << <iframe src="//ads.bcsyndication.com/get.php?s=23357"></iframe> >>
              in
-             raw_attempt
+               raw_attempt*)
 
              ]
            )
@@ -1072,7 +1038,6 @@ let () =
   )
 
 (* User Page Service *)
-(* TODO: Add an about me section here *)
 let () =
   Eliom_registration.Html5.register
     ~service:user_page_service

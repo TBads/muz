@@ -9,21 +9,12 @@ open Db_funs
 
 (* TODO: Show number of thumbs up / down next to a story *)
 (* TODO: Need a way for users to edit their info after creating an account *)
-(* TODO: finish configuring the favicon *)
-(* TODO: Add Settings page so that users can add their own advertising links *)
 
 let user_info =
   Eliom_reference.Volatile.eref ~scope:Eliom_common.default_session_scope ~secure:true
     {username = None;
      email = None;
-     verified = None;
-     location = {
-       country = None;
-       state = None;
-       city = None;
-       hood = None;
-       school = None
-     }
+     verified = None
     }
 
 module Config =
@@ -52,12 +43,7 @@ let new_acct_db_service =
                                   ~post_params:(string "new_username" **
                                                 string "new_email" **
                                                 string "new_password" **
-                                                string "verify_new_password" **
-                                                string "country" **
-                                                string "state" **
-                                                string "city" **
-                                                string "hood" **
-                                                string "school") ()
+                                                string "verify_new_password") ()
 
 (* Login Page Service *)
 let login_service =
@@ -79,7 +65,6 @@ let new_story_service =
 (* Action to write the new story to the db *)
 let new_story_action =
   Eliom_service.Http.post_coservice' ~post_params:(string "title" **
-                                                   string "body" **
                                                    (opt (file "pic")) **
                                                     string "hashtags") ()
 
@@ -162,7 +147,7 @@ let new_story_button (u : user) =
   | Some true ->
     begin
       div ~a:[a_class ["btn btn-default btn-lg"]; a_id "header_button"]
-      [a new_story_service [pcdata "Submit a Story"] ()
+      [a new_story_service [pcdata "Submit "] ()
       ]
     end
   | _ -> div []
@@ -227,14 +212,6 @@ let thumbs_down_button ?(picked = false) (s : story) =
       ]
   )
 
-(* Click to show stories in the users neighborhood *)
-let hood_button ?(extra_style = "") (u : user) =
-  match u.verified, u.location.hood with
-  | Some true, Some h ->
-      div ~a:[a_class ["btn btn-default btn-lg"]; a_id "header_button"]
-      [a hood_page_service [pcdata ("$" ^ h)] h]
-  | _, _ -> div []
-
 (* Handmade Core.Core_string.split_on_chars b/c core breaks in Ocsigen *)
 let split_string_on in_string ~on =
   (* Split the string into a list of its individual characters, as strings not characters *)
@@ -287,14 +264,7 @@ let single_story_image_button (s : story) =
 let new_account_form =
   Eliom_content.Html5.F.post_form ~service:new_acct_db_service ~port:Config.port
   (
-    fun (new_username,
-         (new_email,
-          (new_password,
-           (verify_new_password,
-            (country,
-             (state,
-              (city,
-               (hood, school)))))))) ->
+    fun (new_username, (new_email, (new_password, verify_new_password))) ->
       [div ~a:[a_style "width: 600px; margin: auto"]
        [div ~a:[a_class ["panel panel-primary"];
                 a_style "border: 1px solid #634271; width: 400px; margin: auto; border-radius: 4px"]
@@ -335,15 +305,8 @@ let new_account_form =
             ]
            ];
 
-          (* Optional Location Section *)
-
           div ~a:[a_id "optional_section"] [];
-          div ~a:[a_style "text-align: center"] [h5 [pcdata "This section is optional."]];
-          div ~a:[a_style "text-align: center; margin-bottom: 15px"]
-            [h5 [pcdata "You do NOT have to provide this information."];
-             h5 [pcdata ("We reccomend you at least fill out your neighborhood " ^
-                         "and/or school to see what is happening around you.")]
-            ];
+          div ~a:[a_style "text-align: center"] [h5 [pcdata "Your email address is optional."]];
 
           div ~a:[a_class ["form-group"]]
           [div ~a:[a_class ["input-group"]]
@@ -354,56 +317,6 @@ let new_account_form =
                          ~input_type:`Text ~name:new_email ()
            ]
           ];
-
-           div ~a:[a_class ["form-group"]]
-           [div ~a:[a_class ["input-group"]]
-            [Raw.span ~a:[a_class ["input-group-addon"]]
-             [Raw.span ~a:[a_class ["glyphicon glyphicon-globe"]] []
-             ];
-             string_input ~a:[a_class ["form-control"]; a_placeholder "Country"]
-                          ~input_type:`Text ~name:country ()
-            ]
-           ];
-
-           div ~a:[a_class ["form-group"]]
-           [div ~a:[a_class ["input-group"]]
-            [Raw.span ~a:[a_class ["input-group-addon"]]
-             [Raw.span ~a:[a_class ["glyphicon glyphicon-globe"]] []
-             ];
-             string_input ~a:[a_class ["form-control"]; a_placeholder "State"]
-                          ~input_type:`Text ~name:state ()
-            ]
-           ];
-
-           div ~a:[a_class ["form-group"]]
-           [div ~a:[a_class ["input-group"]]
-            [Raw.span ~a:[a_class ["input-group-addon"]]
-             [Raw.span ~a:[a_class ["glyphicon glyphicon-globe"]] []
-             ];
-             string_input ~a:[a_class ["form-control"]; a_placeholder "City"]
-                          ~input_type:`Text ~name:city ()
-            ]
-           ];
-
-           div ~a:[a_class ["form-group"]]
-           [div ~a:[a_class ["input-group"]]
-            [Raw.span ~a:[a_class ["input-group-addon"]]
-             [Raw.span ~a:[a_class ["glyphicon glyphicon-home"]] []
-             ];
-             string_input ~a:[a_class ["form-control"]; a_placeholder "Hood"]
-                          ~input_type:`Text ~name:hood ()
-            ]
-           ];
-
-           div ~a:[a_class ["form-group"]]
-           [div ~a:[a_class ["input-group"]]
-            [Raw.span ~a:[a_class ["input-group-addon"]]
-             [Raw.span ~a:[a_class ["glyphicon glyphicon-education"]] []
-             ];
-             string_input ~a:[a_class ["form-control"]; a_placeholder "School"]
-                          ~input_type:`Text ~name:school ()
-            ]
-           ];
 
           button ~a:[a_class ["btn btn-lg btn-success btn-block"];
                      a_style "width: 150px; margin: auto; background-color: #634271;
@@ -447,14 +360,14 @@ let login_form =
 let new_story_form =
   Eliom_content.Html5.F.post_form ~service:new_story_action ~port:Config.port
   (
-    fun (title, (body, (pic, hashtags))) ->
+    fun (title, (pic, hashtags)) ->
       [div ~a:[a_style "margin: auto; margin-top: 75px; width: 800px"]
        [div ~a:[a_class ["panel panel-primary"];
                 a_style "border: 1px solid #634271; width: 800px; margin: auto;
                          margin-top: 25px; border-radius: 4px"]
         [div ~a:[a_class ["panel-heading"];
                  a_style "background-color: #634271; border: 1px solid #634271; border-radius: 0px"]
-         [h3 ~a:[a_class ["panel-title"; "text-center"]] [pcdata "Submit a New Story"]
+         [h3 ~a:[a_class ["panel-title"; "text-center"]] [pcdata "Submit"]
          ];
 
          div ~a:[a_class ["panel-body"]; a_style "border-radius: 4px; background: whitesmoke"]
@@ -466,13 +379,6 @@ let new_story_form =
 
          div ~a:[a_class ["panel-body"]; a_style "border-radius: 4px; background: whitesmoke"]
          [file_input ~a:[a_id "pic_input"] ~name:pic ()];
-
-         div ~a:[a_class ["panel-body"]; a_style "border-radius: 4px; background: whitesmoke"]
-         [textarea ~a:[a_class ["form-control"];
-                       a_placeholder "Body (10 - 10,000 characters)";
-                       a_style "height: 200px"]
-                   ~name:body ()
-         ];
 
          div ~a:[a_class ["panel-body"]; a_style "border-radius: 4px; background: whitesmoke"]
          [textarea ~a:[a_class ["form-control"];
@@ -499,18 +405,17 @@ let header_navbar_skeleton ?(on_page = `Null) (u : user) =
   let b2 = if on_page = `Login then [] else [login_logout_button u] in
   let b3 = if on_page = `NewStory then [] else [new_story_button u] in
   let b4 = if on_page = `UserHome then [] else [user_page_button u] in
-  let b5 = if on_page = `Hood then [] else [hood_button u] in
   let btns =
     match on_page with
-    | `Main -> b1 @ b2 @ b3 @ b4 @ b5
-    | `NewAccount -> b0 @ b2 @ b3 @ b4 @ b5
-    | `Login -> b0 @ b1 @ b3 @ b4 @ b5
-    | `Logout -> b0 @ b1 @ b2 @ b3 @ b4 @ b5
-    | `NewStory -> b0 @ b1 @ b2 @ b4 @ b5
-    | `UserHome -> b0 @ b2 @ b3 @ b5
+    | `Main -> b1 @ b2 @ b3 @ b4
+    | `NewAccount -> b0 @ b2 @ b3 @ b4
+    | `Login -> b0 @ b1 @ b3 @ b4
+    | `Logout -> b0 @ b1 @ b2 @ b3 @ b4
+    | `NewStory -> b0 @ b1 @ b2 @ b4
+    | `UserHome -> b0 @ b2 @ b3
     | `Hood -> b0 @ b1 @ b2 @ b3 @ b4
-    | `SingleStory -> b0 @ b1 @ b2 @ b3 @ b4 @ b5
-    | `Null -> b0 @ b1 @ b2 @ b3 @ b4 @ b5
+    | `SingleStory -> b0 @ b1 @ b2 @ b3 @ b4
+    | `Null -> b0 @ b1 @ b2 @ b3 @ b4
   in
   nav ~a:[a_class ["navbar navbar-fixed-top"]; a_style "background-color: #333;"]
     [div ~a:[a_class ["container-fluid"]]
@@ -602,7 +507,7 @@ let html_of_stories (u : user) stories =
 let thumb_of_story (s : story) =
   let style_string =
     "float: left; margin: 10px; border-radius: 10px; box-shadow: 5px 5px 5px grey;" ^
-    "background: linear-gradient(to top right, #333, #634271); border: black"
+    "background: #333; border: black"
   in
   div ~a:[a_class ["thumbnail"]; a_style style_string]
   [single_story_image_button s]
@@ -700,8 +605,7 @@ let () =
     ~service:main_service
     (fun () () ->
       lwt user = Lwt.return @@ Eliom_reference.Volatile.get user_info in
-      lwt newest_story = Db_funs.get_newest_story () in
-      lwt new_stories = Db_funs.get_recent_stories ~n:3 () in
+      lwt new_stories = Db_funs.get_recent_stories ~n:100 () in
       lwt pop_hashtags = most_pop_hashtags () in
       lwt top_htgs_tbl = top_hashtags_table () in
       Lwt.return
@@ -717,29 +621,8 @@ let () =
               h1 ~a:[a_id "main_page_header"] [pcdata "muz"];
              ];
 
-             div
-             [h1 ~a:[a_style "margin: 40px auto 10px; text-align: center; width: 1200px;
-                              background: white; border-radius: 10px; height: 75px;
-                              font-size: 45px; box-shadow: 5px 5px 5px grey; line-height: 70px"]
-              [pcdata (safe_string ~max_len:42 newest_story.title)];
-
-              img ~a:[a_style "margin: auto; display: block; max-height: 300px; max-width: 1200px;
-                               border-radius: 10px; box-shadow: 5px 5px 5px grey"]
-                  ~alt:"Main Story Picture"
-                  ~src:(
-                    match newest_story.pic_link with
-                    | Some pl ->
-                        let path_list = split_string_on pl ~on:["/"] |> List.tl in
-                        make_uri ~service:(Eliom_service.static_dir ()) path_list
-                    | _ -> (Xml.uri_of_string (cat_or_photo None))) ();
-
-              p ~a:[a_style "margin: 20px auto 40px; text-align: justify; width: 1200px;
-                             background: white; border-radius: 10px; font-size: 15px;
-                             box-shadow: 5px 5px 5px grey; padding: 10px"]
-              [pcdata (safe_string ~max_len:1000 newest_story.body)]
-             ];
-
-             div ~a:[a_class ["row"]; a_style "width: 1000px; height: 600px; margin: auto"]
+             div ~a:[a_class ["row"];
+                     a_style "width: 1200px; height: 600px; margin: auto; adding-left: 30px"]
                (thumbs_of_stories new_stories);
 
              (* Prove that I own the website *)
@@ -785,14 +668,7 @@ let () =
   Eliom_registration.Html5.register
     ~service:new_acct_db_service
     (fun ()
-      (new_username,
-       (new_email,
-        (new_password,
-         (verify_new_password,
-          (country,
-           (state,
-            (city,
-             (hood, school)))))))) ->
+      (new_username, (new_email, (new_password, verify_new_password))) ->
       (* Kick off the thread *)
       lwt username_taken = Db_funs.username_exists new_username in
       lwt email_taken =
@@ -807,14 +683,7 @@ let () =
             let new_user = {
               username = Some new_username;
               email = if new_email <> "" then Some new_email else None;
-              verified = Some false;
-              location = {
-                country  = if country <> "" then Some country else None;
-                state = if state <> "" then Some state else None;
-                city = if city <> "" then Some city else None;
-                hood = if hood <> "" then Some hood else None;
-                school = if school <> "" then Some school else None
-              }
+              verified = Some false
             }
             in
             let msg =
@@ -840,14 +709,7 @@ let () =
         Eliom_reference.Volatile.set user_info
           {username = Some new_username;
            email = if new_email <> "" then Some new_email else None;
-           verified = Some true;
-           location = {
-             country  = if country <> "" then Some country else None;
-             state = if state <> "" then Some state else None;
-             city = if city <> "" then Some city else None;
-             hood = if hood <> "" then Some hood else None;
-             school = if school <> "" then Some school else None
-           }
+           verified = Some true
           };
         let user = Eliom_reference.Volatile.get user_info in
         Lwt.return
@@ -910,8 +772,7 @@ let () =
           Eliom_reference.Volatile.set user_info
             {username = Some username;
              email = None;
-             verified = Some true;
-             location = Db_funs.get_user_location_info username
+             verified = Some true
             };
           Lwt.return main_service
         end
@@ -929,14 +790,7 @@ let () =
       Lwt.return @@ Eliom_reference.Volatile.set user_info
         {username = None;
          email = None;
-         verified = None;
-         location = {
-           country = None;
-           state = None;
-           city = None;
-           hood = None;
-           school = None
-         }
+         verified = None
         }
       >>= fun () -> Lwt.return @@ Eliom_reference.Volatile.get user_info
       >>= fun user ->
@@ -988,7 +842,7 @@ let () =
   Eliom_registration.Action.register
   ~options:`Reload
   ~service:new_story_action
-  (fun () (title, (body, (pic, hashtags))) ->
+  (fun () (title, (pic, hashtags)) ->
     ignore {unit{Dom_html.window##alert (Js.string "Test")}};
     (* TODO: Give success/fail message for the contact message *)
     (****** TODO: Why do these popups not work?!?! ******)
@@ -996,8 +850,6 @@ let () =
      (* TODO: Do a length check for the title also *)
      (* TODO: Users can currently submit a new story without being logged in *)
     let user = Eliom_reference.Volatile.get user_info in
-    let long_enough = (Lwt_bytes.length @@ Lwt_bytes.of_string body) >= 10 in
-    let short_enough = (Lwt_bytes.length @@ Lwt_bytes.of_string body) <= 10_000 in
     let pp =
       match pic with
       | Some _ -> pic_path user
@@ -1008,33 +860,12 @@ let () =
         | Some un, Some true, Some p -> save_pic p pp
         | _ -> Lwt.return ()
     in
-    match long_enough, short_enough with
-    | true, true ->
-        begin
-          ignore
-            {unit{
-              Dom_html.window##alert (Js.string "Thanks for the submission!")
-              }};
-          let pl = match pic with
-            | Some p -> Some pp
-            | _ -> None
-          in
-          Db_funs.write_new_story user ~title ~body ~pic_link:pl ~hashtags
-        end
-    | false, _ ->
-        begin
-        Lwt.return @@ ignore
-          {unit{
-            Dom_html.window##alert (Js.string "ERROR: Body must be at least 10 characters.")
-            }};
-        Lwt.return ()
-        end
-    | _, false ->
-        Lwt.return @@ ignore
-          {unit{
-            Dom_html.window##alert (Js.string "ERROR: Body must be less than 10,000 characters.")
-            }};
-        Lwt.return ();
+    ignore {unit{Dom_html.window##alert (Js.string "Thanks for the submission!")}};
+    let pl = match pic with
+      | Some p -> Some pp
+      | _ -> None
+    in
+    Db_funs.write_new_story user ~title ~body:"NullAndVoid" ~pic_link:pl ~hashtags
   )
 
 (* User Page Service *)

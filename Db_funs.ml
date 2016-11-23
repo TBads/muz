@@ -18,8 +18,7 @@ type location = {
 type user = {
   username : string option;
   email    : string option;
-  verified : bool option;
-  location : location
+  verified : bool option
 }
 
 (* TODO: Add a gps cooridate type and a gps location to the story post *)
@@ -194,13 +193,8 @@ let write_new_user (u : user) pwd =
                 with Failure hd -> raise (Failure "user_id not found")
               in
               let location_sql_stmt =
-                "INSERT INTO muz.user_location (user_id, country, state, city, hood, school)" ^
-                "VALUES('" ^ user_id ^ "', '" ^
-                (esc @@ g u.location.country) ^ "', '" ^
-                (esc @@ g u.location.state) ^ "', '" ^
-                (esc @@ g u.location.city) ^ "', '" ^
-                (esc @@ g u.location.hood) ^ "', '" ^
-                (esc @@ g u.location.school) ^ "')"
+                "INSERT INTO muz.user_location (user_id)" ^
+                "VALUES('" ^ user_id ^ "')"
               in
               let _ = exec conn location_sql_stmt in
               disconnect conn |> fun () -> Lwt.return "Username successfully created"

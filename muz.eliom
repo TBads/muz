@@ -243,8 +243,8 @@ let cat_or_photo so =
   | Some s -> s
   | None   -> "https://pbs.twimg.com/profile_images/664169149002874880/z1fmxo00.jpg"
 
-(* Image link to a single story page service *)
-let single_story_image_button (s : story) =
+(* Image link a thumbnail to a single story page service *)
+let thumbnail_button (s : story) =
   div ~a:[]
   [a single_story_page_service
    [img ~a:[a_style "border-radius: 10px; width: 200px; height: 200px"]
@@ -252,7 +252,10 @@ let single_story_image_button (s : story) =
      ~src:(
        match s.pic_link with
        | Some pl ->
-         let path_list = split_string_on pl ~on:["/"] |> List.tl in
+         let thumb_pic_link =
+           (String.sub pl 0 (String.length pl - 4)) ^ "_thumbnail.jpg"
+         in
+         let path_list = split_string_on thumb_pic_link ~on:["/"] |> List.tl in
           make_uri ~service:(Eliom_service.static_dir ()) path_list
        | _ -> (Xml.uri_of_string (cat_or_photo None))
      )
@@ -510,7 +513,7 @@ let thumb_of_story (s : story) =
     "background: #333; border: black"
   in
   div ~a:[a_class ["thumbnail"]; a_style style_string]
-  [single_story_image_button s]
+  [thumbnail_button s]
 
 (* Turn a list of stories into a list of thumbnails *)
 let thumbs_of_stories stories =
@@ -833,9 +836,19 @@ let pic_path (u : user) =
   | Some un, Some true -> "static/user_pics/" ^ un ^ (string_of_float @@ Unix.time ()) ^ "jpg"
   | _ -> ""
 
+(* Save a thumbnail version of an existing pic - just a compressed version *)
+let save_thumbnail pic_path =
+  let thumbnail_name = (String.sub pic_path 0 (String.length pic_path - 4)) ^ "_thumbnail.jpg" in
+  Lwt_unix.system (
+    "convert " ^ pic_path ^ " -strip -gaussian-blur 0.05 -quality 50 " ^
+    "-resize 200x200 " ^ thumbnail_name
+  )
+
 let save_pic pic pic_path =
   (try Unix.unlink pic_path; with _ -> ());
   Lwt_unix.link (Eliom_request_info.get_tmp_filename pic) pic_path
+  >> save_thumbnail pic_path
+  >>= fun _ -> Lwt.return_unit
 
 (* Write the new story to the database *)
 let () =
@@ -966,8 +979,8 @@ let () =
                 "//d11sa1anfvm2xk.cloudfront.net/media/banners/1_jerry.jpg";
              ];
 
-              (* CENTER CONTENT DIV *)
-              div ~a:[a_id "center_content"] [story_html];
+             (* CENTER CONTENT DIV *)
+             div ~a:[a_id "center_content"] [story_html];
 
              (* RIGHT BANNER DIV *)
              div ~a:[a_id "right_banner"] []

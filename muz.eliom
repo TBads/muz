@@ -833,7 +833,8 @@ let () =
 
 let pic_path (u : user) =
   match u.username, u.verified with
-  | Some un, Some true -> "static/user_pics/" ^ un ^ (string_of_float @@ Unix.time ()) ^ "jpg"
+  | Some un, Some true ->
+      "~/muz/static/user_pics/" ^ un ^ (string_of_float @@ Unix.time ()) ^ "jpg"
   | _ -> ""
 
 (* Save a thumbnail version of an existing pic - just a compressed version *)

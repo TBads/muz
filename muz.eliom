@@ -20,7 +20,7 @@ let user_info =
 module Config =
   struct
     (* port access to the website *)
-    let port = 8081
+    let port = 8080
   end
 
 module Muz_app =
@@ -75,10 +75,6 @@ let user_page_service =
 (* Hashtag page service *)
 let hashtag_page_service =
   Eliom_service.Http.service ~path:["h"] ~get_params:(suffix (string "hashtag")) ()
-
-(* My neighborhood service *)
-let hood_page_service =
-  Eliom_service.Http.service ~path:["hood"] ~get_params:(suffix (string "hood")) ()
 
 (* Service to display a single story *)
 let single_story_page_service =
@@ -416,7 +412,6 @@ let header_navbar_skeleton ?(on_page = `Null) (u : user) =
     | `Logout -> b0 @ b1 @ b2 @ b3 @ b4
     | `NewStory -> b0 @ b1 @ b2 @ b4
     | `UserHome -> b0 @ b2 @ b3
-    | `Hood -> b0 @ b1 @ b2 @ b3 @ b4
     | `SingleStory -> b0 @ b1 @ b2 @ b3 @ b4
     | `Null -> b0 @ b1 @ b2 @ b3 @ b4
   in
@@ -834,7 +829,7 @@ let () =
 let pic_path (u : user) =
   match u.username, u.verified with
   | Some un, Some true ->
-      "~/muz/static/user_pics/" ^ un ^ (string_of_float @@ Unix.time ()) ^ "jpg"
+      "static/user_pics/" ^ un ^ (string_of_float @@ Unix.time ()) ^ "jpg"
   | _ -> ""
 
 (* Save a thumbnail version of an existing pic - just a compressed version *)
@@ -849,7 +844,7 @@ let save_pic pic pic_path =
   (try Unix.unlink pic_path; with _ -> ());
   Lwt_unix.link (Eliom_request_info.get_tmp_filename pic) pic_path
   >> save_thumbnail pic_path
-  >>= fun _ -> Lwt.return_unit
+  |> fun _ -> Lwt.return_unit
 
 (* Write the new story to the database *)
 let () =
@@ -921,29 +916,6 @@ let () =
              h1 ~a:[a_style "margin-top: 100px; text-align: center"]
              [pcdata ("hashtag = " ^ hashtag)];
              div (tagged_stories)
-            ]
-           )
-         )
-    )
-
-(* Hood Page Service *)
-let () =
-  Eliom_registration.Html5.register
-    ~service:hood_page_service
-    (fun hood () ->
-       let user = Eliom_reference.Volatile.get user_info in
-       (* TODO: Sort hood_stories by date *)
-       let hood_stories = Db_funs.get_stories_by_hood hood |> (html_of_stories user) in
-       Lwt.return
-         (Eliom_tools.F.html
-           ~title:("muz/hood/" ^ hood)
-           ~css:[["css"; "muz.css"]]
-           ~other_head:[bootstrap_cdn_link; font_awesome_cdn_link]
-           (body ~a:[a_class ["transparent"]]
-            [header_navbar_skeleton ~on_page:`Hood user;
-             h1 ~a:[a_style "margin-top: 100px; text-align: center"]
-             [pcdata ("hood = " ^ hood)];
-             div (hood_stories)
             ]
            )
          )

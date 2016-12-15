@@ -4,24 +4,12 @@ open Mysql
 
 let (>>=) = Lwt.bind
 
-(* TODO Need query to get a users location from the db *)
-(* Location type *)
-type location = {
-  country : string option;
-  state : string option;
-  city : string option;
-  hood : string option;
-  school : string option
-}
-
 (* User type *)
 type user = {
   username : string option;
   email    : string option;
   verified : bool option
 }
-
-(* TODO: Add a gps cooridate type and a gps location to the story post *)
 
 (* Story type *)
 type story = {
@@ -36,11 +24,11 @@ type story = {
 
 (* Database *)
 let user_db = {
-  dbhost = None;
-  dbname = Some "muz";
-  dbport = Some 3306;
-  dbpwd = Some "HPMpRjbvWMe49A95xHsFhRyw";
-  dbuser = Some "btc_admin_4A3f8E";
+  dbhost   = None;
+  dbname   = Some "muz";
+  dbport   = Some 3306;
+  dbpwd    = Some "HPMpRjbvWMe49A95xHsFhRyw";
+  dbuser   = Some "btc_admin_4A3f8E";
   dbsocket = None
 }
 
@@ -75,14 +63,6 @@ let story_of_result sl = {
   pic_link = pic_link_of_option @@ List.nth sl 4;
   date_time = List.nth sl 5;
   hashtags = sl_of_csv (List.nth sl 6)
-}
-
-let location_of_result sl = {
-  country = if List.nth sl 0 = "" then None else Some (List.nth sl 0);
-  state = if List.nth sl 1 = "" then None else Some (List.nth sl 1);
-  city = if List.nth sl 2 = "" then None else Some (List.nth sl 2);
-  hood = if List.nth sl 3 = "" then None else Some (List.nth sl 3);
-  school = if List.nth sl 4 = "" then None else Some (List.nth sl 4)
 }
 
 (* Check if the username already exists in database *)
@@ -182,22 +162,9 @@ let write_new_user (u : user) pwd =
                 " VALUES('" ^ (esc @@ g u.username) ^ "', '" ^ (esc @@ g u.email) ^ "', '" ^
                 (esc pwd') ^ "')"
               in
-              let _ = exec conn sql_stmt in
-              let user_id_sql_stmt =
-                "SELECT user_id FROM muz.users WHERE username = '" ^ (esc @@ g u.username) ^ "'"
-              in
-              let user_id_query_result = exec conn user_id_sql_stmt in
-              let user_id =
-                try user_id_query_result |> sll_of_res |> List.hd |> List.hd
-                (* TODO: log an error here *)
-                with Failure hd -> raise (Failure "user_id not found")
-              in
-              let location_sql_stmt =
-                "INSERT INTO muz.user_location (user_id)" ^
-                "VALUES('" ^ user_id ^ "')"
-              in
-              let _ = exec conn location_sql_stmt in
-              disconnect conn |> fun () -> Lwt.return "Username successfully created"
+              exec conn sql_stmt
+              |> fun _ -> disconnect conn
+              |> fun () -> Lwt.return "Username successfully created"
           )
       )
   | None -> Lwt.return "No username found"
@@ -342,39 +309,6 @@ let get_stories_by_hashtag hashtag =
   disconnect conn;
   try query_result |> sll_of_res |> (List.map story_of_result)
   with Failure hd -> []
-
-(* Get all stories with a specific hood - Limit to 100 *)
-let get_stories_by_hood hood =
-  let conn = connect user_db in
-  let sql_stmt =
-    "SELECT story_id, stories.username, title, body, pic_link, date_time, hashtags, " ^
-    "thumbs_up, thumbs_down " ^
-    "FROM stories " ^
-    "INNER JOIN users ON stories.username = users.username " ^
-    "WHERE stories.username IN (" ^
-    "SELECT username FROM users " ^
-    "INNER JOIN user_location ON users.user_id = user_location.user_id " ^
-    "WHERE hood = '" ^ hood ^ "')"
-  in
-  let query_result = exec conn sql_stmt in
-  disconnect conn;
-  try query_result |> sll_of_res |> (List.map story_of_result)
-  with Failure hd -> []
-
-(* Get the location information for a user *)
-let get_user_location_info username =
-  let conn = connect user_db in
-  let sql_stmt =
-    "SELECT country, state, city, hood, school FROM users " ^
-    "INNER JOIN user_location ON users.user_id = user_location.user_id " ^
-    "WHERE username = '" ^ username ^ "'"
-  in
-  let res =
-    try exec conn sql_stmt |> sll_of_res |> List.hd |> location_of_result
-    with _ -> {country = None; state = None; city = None; hood = None; school = None}
-  in
-  disconnect conn;
-  res
 
 (* Get the list of users who have rate a story with thumbs up / down *)
 let get_thumbs ~up_down id =

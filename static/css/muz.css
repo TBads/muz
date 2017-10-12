@@ -50,8 +50,19 @@ a {
   box-shadow: 0px 0px 0px transparent !important;
 }
 
+.navbar {
+  background-color: #333;
+  width: 1000px;
+  margin: 0px auto;
+  box-shadow: 5px 5px 5px grey;
+}
+
+.navbar-fixed-bottom, .navbar-fixed-top {
+  border-radius: 0px 0px 10px 10px !important;
+}
+
 #dark_section {
-  width: 1200px;
+  width: 1000px;
   height: 375px;
   background: #634271;
   background: linear-gradient(to top right, #333, #634271);
@@ -62,7 +73,6 @@ a {
 #main_page_header {
   margin-top: 50px;
   padding-top: 50px;
-  padding-right: 200px;
   font-size: 200px;
   font-family: 'Ewert', sans-serif;
   color: #FFFFFF;
@@ -115,6 +125,7 @@ a {
   border-radius: 10px;
   box-shadow: 5px 5px 5px grey;
   margin-top: 15px;
+  width: 1000px;
 }
 
 #pic_upload_form {
@@ -239,4 +250,21 @@ a {
     height: 100%;
     float: right;
     text-align: center;
+}
+
+#main_pg_thumbnail {
+    float: left;
+    margin: 10px 10px 10px 10px;
+    border-radius: 10px;
+    box-shadow: 5px 5px 5px grey;
+    background: #333;
+    border: black;
+    padding: 0px;
+}
+
+#thumbnails_div {
+    width: 1000px;
+    height: 600px;
+    margin: auto;
+    padding-top: 30px;
 }

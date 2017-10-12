@@ -88,14 +88,6 @@ let pic_form_service =
 let pic_upload_service =
   Eliom_service.Http.post_service ~fallback:main_service ~post_params:(file "pic") ()
 
-(* Action to handle a Thumbs Up *)
-let thumbs_up_action =
-  Eliom_service.Http.post_coservice' ~post_params:(int "id") ()
-
-(* Action to handle a Thumbs Down *)
-let thumbs_down_action =
-  Eliom_service.Http.post_coservice' ~post_params:(int "id") ()
-
 (*** Page Elements ***)
 
 (* Bootstrap CDN link *)
@@ -172,42 +164,6 @@ let author_button ?(extra_style = "") username =
   [a user_page_service [pcdata ("@" ^ username)] username
   ]
 
-let thumbs_up_button ?(picked = false) (s : story) =
-  let thumb_color =
-    match picked with
-    | true -> "color: green"
-    | false -> "color: #333"
-  in
-  Eliom_content.Html5.F.post_form ~service:thumbs_up_action ~port:Config.port
-  (
-    fun id ->
-      [
-       div ~a:[a_id "thumbs_up_button"]
-       [int_input ~input_type:`Hidden ~name:id ~value:s.id ();
-        button ~a:[a_class ["glyphicon glyphicon-thumbs-up"]; a_style thumb_color]
-               ~button_type:`Submit []
-       ]
-      ]
-  )
-
-let thumbs_down_button ?(picked = false) (s : story) =
-  let thumb_color =
-    match picked with
-    | true -> "color: red"
-    | false -> "color #333"
-  in
-  Eliom_content.Html5.F.post_form ~service:thumbs_down_action ~port:Config.port
-  (
-    fun id ->
-      [
-       div ~a:[a_id "thumbs_down_button"]
-       [int_input ~input_type:`Hidden ~name:id ~value:s.id ();
-        button ~a:[a_class ["glyphicon glyphicon-thumbs-down"]; a_style thumb_color]
-               ~button_type:`Submit []
-       ]
-      ]
-  )
-
 (* Handmade Core.Core_string.split_on_chars b/c core breaks in Ocsigen *)
 let split_string_on in_string ~on =
   (* Split the string into a list of its individual characters, as strings not characters *)
@@ -243,7 +199,7 @@ let cat_or_photo so =
 let thumbnail_button (s : story) =
   div ~a:[]
   [a single_story_page_service
-   [img ~a:[a_style "border-radius: 10px; width: 200px; height: 200px"]
+   [img ~a:[a_style "border-radius: 10px; width: 180px; height: 180px"]
      ~alt:(s.title)
      ~src:(
        match s.pic_link with
@@ -415,7 +371,7 @@ let header_navbar_skeleton ?(on_page = `Null) (u : user) =
     | `SingleStory -> b0 @ b1 @ b2 @ b3 @ b4
     | `Null -> b0 @ b1 @ b2 @ b3 @ b4
   in
-  nav ~a:[a_class ["navbar navbar-fixed-top"]; a_style "background-color: #333;"]
+  nav ~a:[a_class ["navbar navbar-fixed-top"]]
     [div ~a:[a_class ["container-fluid"]]
      [div ~a:[a_class ["navbar-header"]; a_style "width: 100%"] btns]]
 
@@ -443,15 +399,6 @@ let hashtags_of_sl sl =
 
 (* Turn a story into html *)
 let html_of_story (u : user) (s : story) =
-  let t_ups = get_thumbs ~up_down:`Up (string_of_int s.id) in
-  let t_downs = get_thumbs ~up_down:`Down (string_of_int s.id) in
-  let t_ups_count = List.length t_ups in
-  let t_downs_count = List.length t_downs in
-  let t_up, t_down =
-    match u.verified, u.username with
-    | Some true, Some un -> (List.mem un t_ups, List.mem un t_downs)
-    | _, _ -> (false, false)
-  in
   div
   [h1 ~a:[a_style "margin: 40px auto; witdh: 800px; text-align: center"]
    [pcdata s.title];
@@ -474,22 +421,8 @@ let html_of_story (u : user) (s : story) =
     [pcdata (time_string @@ float_of_string @@ s.date_time)]
    ];
 
-   div ~a:[a_id "story_hashtags"] (hashtags_of_sl s.hashtags);
-
-   div ~a:[a_id "thumbs"]
-   [div ~a:[a_id "thumbs_up"]
-    [thumbs_up_button ~picked:t_up s ();
-     h4 ~a:[a_id "thumbs_up_count"] [pcdata (string_of_int t_ups_count)];
-    ];
-
-    div ~a:[a_id "thumbs_down"]
-    [thumbs_down_button ~picked:t_down s ();
-     h4 ~a:[a_id "thumbs_down_count"] [pcdata (string_of_int t_downs_count)];
-    ];
-   ];
-
    div ~a:[a_id "story"]
-   [p ~a:[a_style "margin: 10px 10px 10px 10px; width: 1200px; text-align: justify"]
+   [p ~a:[a_style "margin: 10px 10px 10px 10px; width: 100%; text-align: justify"]
     [pcdata s.body]
    ];
 
@@ -503,11 +436,11 @@ let html_of_stories (u : user) stories =
 
 (* Turn a story into an html thumbnail *)
 let thumb_of_story (s : story) =
-  let style_string =
+  (*let style_string =
     "float: left; margin: 10px; border-radius: 10px; box-shadow: 5px 5px 5px grey;" ^
     "background: #333; border: black"
-  in
-  div ~a:[a_class ["thumbnail"]; a_style style_string]
+    in*)
+  div ~a:[a_class ["thumbnail"]; a_id "main_pg_thumbnail"(*; a_style style_string*)]
   [thumbnail_button s]
 
 (* Turn a list of stories into a list of thumbnails *)
@@ -559,24 +492,6 @@ let rec top_n_rows ~n l_in l_out =
       then top_n_rows ~n tl (l_out @ [hd])
       else l_out
 
-let top_hashtags_table () =
-  lwt pop_htgs = Db_funs.get_recent_hashtags ~n:10 () in
-  let pop_hashtags = List.map (fun s -> hashtag_button s) pop_htgs in
-  let table_title =
-    tr ~a:[a_id "hashtag_table_title"]
-    [td ~a:[a_style "background: #333; border-radius: 10px 0px;"]
-     [pcdata "Top Hashtags"]
-    ]
-  in
-  let hashtag_trs =
-    List.map (fun hashtag -> tr ~a:[a_style "height: 30px"] [td [hashtag]]) pop_hashtags
-  in
-  let hashtag_tbl = table ~a:[a_class ["table"]] (top_n_rows ~n:10 hashtag_trs [table_title]) in
-  Lwt.return @@
-  div ~a:[a_id "hashtag_table"]
-  [div ~a:[a_class ["text-center"]] [hashtag_tbl]
-  ]
-
 let left_banner ~alt link pic_path =
   div
   [Raw.a ~a:[a_href (Xml.uri_of_string link)]
@@ -605,7 +520,6 @@ let () =
       lwt user = Lwt.return @@ Eliom_reference.Volatile.get user_info in
       lwt new_stories = Db_funs.get_recent_stories ~n:100 () in
       lwt pop_hashtags = most_pop_hashtags () in
-      lwt top_htgs_tbl = top_hashtags_table () in
       Lwt.return
         (Eliom_tools.F.html
            ~title:"uz"
@@ -615,12 +529,10 @@ let () =
             [header_navbar_skeleton ~on_page:`Main user;
 
              div ~a:[a_id "dark_section"]
-             [div [top_htgs_tbl];
-              h1 ~a:[a_id "main_page_header"] [pcdata "muz"];
+             [h1 ~a:[a_id "main_page_header"] [pcdata "muz"]
              ];
 
-             div ~a:[a_class ["row"];
-                     a_style "width: 1200px; height: 600px; margin: auto; adding-left: 30px"]
+             div ~a:[a_class ["row"]; a_id "thumbnails_div"]
                (thumbs_of_stories new_stories);
 
              (* Prove that I own the website *)
@@ -1026,34 +938,3 @@ let () =
              [header_navbar_skeleton user;
             h1 [pcdata ("Pic saved in: " ^ pp)];
            ])))
-
-(* TODO: When the thumbs actions are updated. The counts should be adjusted and the colors *)
-(*       changed, but the page should not be reloaded                                      *)
-
-(* Thumbs Up Action *)
-let () =
-  Eliom_registration.Action.register
-    ~options:`Reload
-    ~service:thumbs_up_action
-    (fun () id ->
-      let user = Eliom_reference.Volatile.get user_info in
-      let t_ups = Db_funs.get_thumbs ~up_down:`Up (string_of_int id) in
-      let t_downs = Db_funs.get_thumbs ~up_down:`Down (string_of_int id) in
-      match user.verified, user.username with
-      | Some true, Some un ->
-        Lwt.return @@ Db_funs.write_thumbs_action ~up_down:`Up ~id:(string_of_int id) un
-      | _ -> Lwt.return ()
-    )
-
-(* Thumbs Down Action *)
-let () =
-  Eliom_registration.Action.register
-    ~options:`Reload
-    ~service:thumbs_down_action
-    (fun () id ->
-      let user = Eliom_reference.Volatile.get user_info in
-      match user.verified, user.username with
-      | Some true, Some un ->
-          Lwt.return @@ Db_funs.write_thumbs_action ~up_down:`Down ~id:(string_of_int id) un
-      | _ -> Lwt.return ()
-    )

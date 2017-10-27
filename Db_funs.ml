@@ -22,6 +22,14 @@ type story = {
   hashtags  : string list;
 }
 
+type item = {
+  id        : int;
+  title     : string;
+  body      : string;
+  pic_link  : string option;
+  date_time : string;
+}
+
 (* Database *)
 let user_db = {
   dbhost   = None;
@@ -63,6 +71,14 @@ let story_of_result sl = {
   pic_link = pic_link_of_option @@ List.nth sl 4;
   date_time = List.nth sl 5;
   hashtags = sl_of_csv (List.nth sl 6)
+}
+
+let item_of_result sl = {
+  id = int_of_string @@ List.nth sl 0;
+  title = List.nth sl 1;
+  body = List.nth sl 2;
+  pic_link = pic_link_of_option @@ List.nth sl 3;
+  date_time = List.nth sl 4;
 }
 
 (* Check if the username already exists in database *)
@@ -212,6 +228,23 @@ let write_new_story (u : user) ~title ~body ~pic_link ~hashtags =
   let _ = exec conn sql_stmt in
   Lwt.return @@ disconnect conn
 
+(* Write a new item to the database *)
+let write_new_item ~title ~body ~pic_link =
+  let now = string_of_int @@ int_of_float @@ Unix.time () in
+  let conn = connect user_db in
+  let esc s = Mysql.real_escape conn s in
+  let sql_stmt =
+    "INSERT INTO muz.items_for_sale (title, body, pic_link, date_time)" ^
+    " VALUES ('" ^
+    (esc title) ^ "', '" ^
+    (esc body) ^ "', '" ^
+    (esc @@ string_of_option pic_link) ^ "', '" ^
+    (esc now) ^ "')"
+  in
+  print_string ("sql_stmt = " ^ sql_stmt);
+  let _ = exec conn sql_stmt in
+  Lwt.return @@ disconnect conn
+
 (* Get the most recent story from the database *)
 let get_newest_story () =
   let conn = connect user_db in
@@ -236,6 +269,19 @@ let get_story story_id =
   disconnect conn;
   Lwt.return @@ res
 
+(* Get a single item for sale from the database, return Some item, or None *)
+let get_item item_id =
+  let conn = connect user_db in
+  let sql_stmt = "SELECT * FROM muz.items_for_sale WHERE item_id = " ^ item_id in
+  let res =
+    try
+      exec conn sql_stmt |> sll_of_res |> List.hd |> (fun s -> Some (item_of_result s))
+    with
+      Failure _ -> None
+  in
+  disconnect conn;
+  Lwt.return @@ res
+
 (* Get a stories for a single user *)
 let get_all_stories username =
   let conn = connect user_db in
@@ -254,6 +300,19 @@ let get_recent_stories ~n () =
   disconnect conn;
   Lwt.return (
     try query_result |> sll_of_res |> (List.map story_of_result)
+    with Failure hd -> []
+  )
+
+(* Get the most recent items for sale *)
+let get_recent_items ~n () =
+  let conn = connect user_db in
+  let sql_stmt =
+    "SELECT * FROM muz.items_for_sale ORDER BY date_time DESC LIMIT " ^ (string_of_int n)
+  in
+  let query_result = exec conn sql_stmt in
+  disconnect conn;
+  Lwt.return (
+    try query_result |> sll_of_res |> (List.map item_of_result)
     with Failure hd -> []
   )
 

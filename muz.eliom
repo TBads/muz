@@ -62,11 +62,21 @@ let logout_service =
 let new_story_service =
   Eliom_service.Http.service ~path:["new_story"] ~get_params:Eliom_parameter.unit ()
 
+(* List New Item Service *)
+let list_new_item_service =
+  Eliom_service.Http.service ~path:["new_item"] ~get_params:Eliom_parameter.unit ()
+
 (* Action to write the new story to the db *)
 let new_story_action =
   Eliom_service.Http.post_coservice' ~post_params:(string "title" **
                                                    (opt (file "pic")) **
-                                                    string "hashtags") ()
+                                                   string "hashtags") ()
+
+(* Action to write the new item listing to the db *)
+let new_item_action =
+  Eliom_service.Http.post_coservice' ~post_params:(string "listing_title" **
+                                                   (opt (file "picturej")) **
+                                                   string "description") ()
 
 (* User page service *)
 let user_page_service =
@@ -80,6 +90,10 @@ let hashtag_page_service =
 let single_story_page_service =
   Eliom_service.Http.service ~path:["s"] ~get_params:(suffix (string "story_id")) ()
 
+(* Service to display a single item for sale *)
+let single_item_page_service =
+  Eliom_service.Http.service ~path:["item"] ~get_params:(suffix (string "item_id")) ()
+
 (* Form for uploading a picture *)
 let pic_form_service =
   Eliom_service.Http.service ~path:["pic_upload"] ~get_params:Eliom_parameter.unit ()
@@ -87,6 +101,10 @@ let pic_form_service =
 (* Service to save picture *)
 let pic_upload_service =
   Eliom_service.Http.post_service ~fallback:main_service ~post_params:(file "pic") ()
+
+(* Service to search available item listings *)
+let search_service =
+  Eliom_service.Http.post_service ~fallback:main_service ~post_params:(string "search_input") ()
 
 (*** Page Elements ***)
 
@@ -139,6 +157,11 @@ let new_story_button (u : user) =
       ]
     end
   | _ -> div []
+
+let new_item_button =
+  div ~a:[a_class ["btn btn-default btn-lg"]; a_id "header_button"]
+  [a list_new_item_service [pcdata "List Item "] ()
+  ]
 
 let user_page_button (u : user) =
   match u.verified with
@@ -214,6 +237,27 @@ let thumbnail_button (s : story) =
      ()
    ]
    (string_of_int s.id)
+  ]
+
+(* Image link a thumbnail to a single item for sale page service *)
+let thumbnail_button_2 (i : item) =
+  div ~a:[]
+  [a single_item_page_service
+   [img ~a:[a_style "border-radius: 10px; width: 180px; height: 180px"]
+     ~alt:(i.title)
+     ~src:(
+       match i.pic_link with
+       | Some pl ->
+         let thumb_pic_link =
+           (String.sub pl 0 (String.length pl - 4)) ^ "_thumbnail.jpg"
+         in
+         let path_list = split_string_on thumb_pic_link ~on:["/"] |> List.tl in
+          make_uri ~service:(Eliom_service.static_dir ()) path_list
+       | _ -> (Xml.uri_of_string (cat_or_photo None))
+     )
+     ()
+   ]
+   (string_of_int i.id)
   ]
 
 let new_account_form =
@@ -353,6 +397,44 @@ let new_story_form =
       ]
   )
 
+(* New Item Form *)
+let new_item_form =
+  Eliom_content.Html5.F.post_form ~service:new_item_action ~port:Config.port
+  (
+    fun (listing_title, (picture, item_description)) ->
+      [div ~a:[a_id "list_item_form_outer_div"]
+       [div ~a:[a_class ["panel panel-primary"]; a_id "list_item_panel"]
+        [div ~a:[a_class ["panel-heading"]; a_id "list_item_heading"]
+         [h3 ~a:[a_class ["panel-title"; "text-center"]; a_id "list_item_title"]
+          [pcdata "List an Item for Sale"]
+         ];
+
+         div ~a:[a_class ["panel-body"]; a_id "list_item_body"]
+         [textarea ~a:[a_class ["form-control"];
+                       a_placeholder "Listing Title"; a_id "list_item_title_text"]
+                   ~name:listing_title ()
+         ];
+
+         div ~a:[a_class ["panel-body"]; a_id "list_item_body"]
+         [file_input ~a:[a_id "pic_input"] ~name:picture ()];
+
+         div ~a:[a_class ["panel-body"]; a_id "list_item_body"]
+         [textarea ~a:[a_class ["form-control"];
+                       a_placeholder "Describe your item...";
+                       a_id "list_item_body_text"]
+                   ~name:item_description ()
+         ];
+
+         div ~a:[a_id "list_item_button_div"]
+         [button ~a:[a_class ["btn btn-lg btn-success btn-block"];
+                     a_id "list_item_submit_button"]
+                 ~button_type:`Submit [pcdata "Submit"]
+         ]
+        ]
+       ]
+      ]
+  )
+
 (* Header Navbar Skeleton *)
 let header_navbar_skeleton ?(on_page = `Null) (u : user) =
   let b0 = if on_page = `Main then [] else [main_page_button] in
@@ -360,16 +442,34 @@ let header_navbar_skeleton ?(on_page = `Null) (u : user) =
   let b2 = if on_page = `Login then [] else [login_logout_button u] in
   let b3 = if on_page = `NewStory then [] else [new_story_button u] in
   let b4 = if on_page = `UserHome then [] else [user_page_button u] in
+  let b5 = if on_page = `NewItem then [] else [new_item_button] in
+  let search_form =
+    Eliom_content.Html5.F.post_form ~service:search_service ~port:Config.port
+      (
+        fun search_input ->
+          [div ~a:[a_class ["form-group"]; a_id "search_field"]
+           [div ~a:[a_class ["input-group"]]
+            [Raw.span ~a:[a_class ["input-group-addon"]]
+             [Raw.span ~a:[a_class ["glyphicon glyphicon-search"]] []];
+              string_input ~a:[a_class ["form-control"]; a_placeholder "Search Listings..."]
+                ~input_type:`Text ~name:search_input ()
+            ]
+           ]
+          ]
+      )
+  in
+  let search_div = [search_form ()] in
   let btns =
     match on_page with
-    | `Main -> b1 @ b2 @ b3 @ b4
-    | `NewAccount -> b0 @ b2 @ b3 @ b4
-    | `Login -> b0 @ b1 @ b3 @ b4
-    | `Logout -> b0 @ b1 @ b2 @ b3 @ b4
-    | `NewStory -> b0 @ b1 @ b2 @ b4
-    | `UserHome -> b0 @ b2 @ b3
-    | `SingleStory -> b0 @ b1 @ b2 @ b3 @ b4
-    | `Null -> b0 @ b1 @ b2 @ b3 @ b4
+    | `Main -> b1 @ b2 @ b3 @ b4 @ b5 @ search_div
+    | `NewAccount -> b0 @ b2 @ b3 @ b4 @ b5 @ search_div
+    | `Login -> b0 @ b1 @ b3 @ b4 @ b5 @ search_div
+    | `Logout -> b0 @ b1 @ b2 @ b3 @ b4 @ b5 @ search_div
+    | `NewStory -> b0 @ b1 @ b2 @ b4 @ b5 @ search_div
+    | `NewItem -> b0 @ b1 @ b2 @ b4 @ search_div
+    | `UserHome -> b0 @ b2 @ b3 @ b5 @ search_div
+    | `SingleStory -> b0 @ b1 @ b2 @ b3 @ b4 @ b5 @ search_div
+    | `Null -> b0 @ b1 @ b2 @ b3 @ b4 @ b5 @ search_div
   in
   nav ~a:[a_class ["navbar navbar-fixed-top"]]
     [div ~a:[a_class ["container-fluid"]]
@@ -430,22 +530,58 @@ let html_of_story (u : user) (s : story) =
                     background-color: #333; border-radius: 5px"] []
   ]
 
+(* Turn an item into html *)
+let html_of_item (u : user) (i : item) =
+  div ~a:[a_id "main_item_picture"]
+  [h1 ~a:[a_style "margin: 40px auto; witdh: 800px; text-align: center"]
+   [pcdata i.title];
+
+   img ~a:[a_style "margin: auto; display: block; max-height: 300px; max-width: 1200px;
+                    border-radius: 10px; box-shadow: 5px 5px 5px grey"]
+     ~alt:"Cats are really cool"
+     ~src:(
+       match i.pic_link with
+       | Some pl ->
+         let path_list = split_string_on pl ~on:["/"] |> List.tl in
+          make_uri ~service:(Eliom_service.static_dir ()) path_list
+       | _ -> (Xml.uri_of_string (cat_or_photo None))
+     )
+   ();
+
+   div ~a:[a_id "author_info"]
+   [p ~a:[a_style "float: left; margin: 10px 10px 10px 10px; text-align: left"]
+    [pcdata (time_string @@ float_of_string @@ i.date_time)]
+   ];
+
+   div ~a:[a_id "item"]
+   [p ~a:[a_style "margin: 10px 10px 10px 10px; width: 100%; text-align: justify"]
+    [pcdata i.body]
+   ];
+
+   div ~a:[a_id "item_divider" ] []
+  ]
+
 (* Turn a list of stories into html *)
 let html_of_stories (u : user) stories =
   List.map (html_of_story u) stories
 
 (* Turn a story into an html thumbnail *)
 let thumb_of_story (s : story) =
-  (*let style_string =
-    "float: left; margin: 10px; border-radius: 10px; box-shadow: 5px 5px 5px grey;" ^
-    "background: #333; border: black"
-    in*)
-  div ~a:[a_class ["thumbnail"]; a_id "main_pg_thumbnail"(*; a_style style_string*)]
+  div ~a:[a_class ["thumbnail"]; a_id "main_pg_thumbnail"]
   [thumbnail_button s]
+
+(* Turn an item into an html thumbnail *)
+let thumb_of_item (i : item) =
+  div ~a:[a_class ["thumbnail"]; a_id "main_pg_thumbnail"]
+  [thumbnail_button_2 i]
 
 (* Turn a list of stories into a list of thumbnails *)
 let thumbs_of_stories stories =
   List.map (thumb_of_story) stories
+
+(* Turn a list of items into a list of thumbnails *)
+let thumbs_of_items items =
+  List.map (thumb_of_item) items
 
 (* Limit the length of a string and pad with "..." *)
 let safe_string ~max_len s =
@@ -518,8 +654,7 @@ let () =
     ~service:main_service
     (fun () () ->
       lwt user = Lwt.return @@ Eliom_reference.Volatile.get user_info in
-      lwt new_stories = Db_funs.get_recent_stories ~n:100 () in
-      lwt pop_hashtags = most_pop_hashtags () in
+      lwt new_items = Db_funs.get_recent_items ~n:100 () in
       Lwt.return
         (Eliom_tools.F.html
            ~title:"uz"
@@ -533,7 +668,7 @@ let () =
              ];
 
              div ~a:[a_class ["row"]; a_id "thumbnails_div"]
-               (thumbs_of_stories new_stories);
+               (thumbs_of_items new_items);
 
              (* Prove that I own the website *)
              (*Html5.C.node {{iframe_div ()}};*)
@@ -738,6 +873,25 @@ let () =
             )
            ])))
 
+(* New Item Service *)
+let () =
+  Eliom_registration.Html5.register
+    ~service:list_new_item_service
+    (fun () () ->
+      let user = Eliom_reference.Volatile.get user_info in
+      Lwt.return
+        (Eliom_tools.F.html
+          ~title:"List Item for Sale"
+          ~css:[["css";"muz.css"]]
+          ~other_head:[bootstrap_cdn_link; font_awesome_cdn_link]
+          (body ~a:[a_class ["transparent"]]
+           [header_navbar_skeleton ~on_page:`NewItem user;
+            new_item_form ()
+           ]
+          )
+        )
+    )
+
 let pic_path (u : user) =
   match u.username, u.verified with
   | Some un, Some true ->
@@ -787,6 +941,35 @@ let () =
       | _ -> None
     in
     Db_funs.write_new_story user ~title ~body:"NullAndVoid" ~pic_link:pl ~hashtags
+  )
+
+(* Write the new item to the database *)
+let () =
+  Eliom_registration.Action.register
+  ~options:`Reload
+  ~service:new_item_action
+  (fun () (listing_title, (picture, item_description)) ->
+    ignore {unit{Dom_html.window##alert (Js.string "Test")}};
+     (* TODO: Do a length check for the title also *)
+    let user = Eliom_reference.Volatile.get user_info in
+    let pp =
+      match picture with
+      | Some _ -> pic_path user
+      | _ -> ""
+    in
+    lwt () =
+      match picture with
+        | Some p -> save_pic p pp
+        | _ -> Lwt.return ()
+    in
+    ignore {unit{Dom_html.window##alert (Js.string "Thanks for the submission!")}};
+    let pl = match picture with
+      | Some p -> Some pp
+      | _ -> None
+    in
+    (* TODO: Check that the user has put something in each field *)
+    (* TODO: Check that each field meets length requirements     *)
+    Db_funs.write_new_item ~title:listing_title ~body:"NullAndVoid" ~pic_link:pl
   )
 
 (* User Page Service *)
@@ -874,6 +1057,35 @@ let () =
          )
     )
 
+(* Single Item Page Service *)
+let () =
+  Eliom_registration.Html5.register
+    ~service:single_item_page_service
+    (fun item_id () ->
+       let user = Eliom_reference.Volatile.get user_info in
+       lwt itm = get_item item_id in
+       let item_html, item_id, item_title =
+         match itm with
+         | Some i -> (html_of_item user i, string_of_int i.id, i.title)
+         | None   -> (
+             h3 ~a:[a_style "text-align: center"] [pcdata "Item Not Found"],
+             "",
+             "Item Not Found"
+           )
+       in
+       Lwt.return
+         (Eliom_tools.F.html
+           ~title:("muz/item/" ^ item_id)
+           ~css:[["css"; "muz.css"]]
+           ~other_head:[bootstrap_cdn_link; font_awesome_cdn_link]
+           (body ~a:[a_class ["transparent"]]
+            [header_navbar_skeleton ~on_page:`Null user;
+             div ~a:[a_id "center_content"] [item_html];
+            ]
+           )
+         )
+    )
+
 (* Picture upload form *)
 let pic_upload_form =
   Eliom_content.Html5.F.post_form ~service:pic_upload_service ~port:Config.port
@@ -937,4 +1149,23 @@ let () =
           (body ~a:[a_class ["transparent"]]
              [header_navbar_skeleton user;
             h1 [pcdata ("Pic saved in: " ^ pp)];
-           ])))
+             ])))
+
+(* Listing Search Service *)
+let () =
+  Eliom_registration.Html5.register
+    ~service:search_service
+    (fun () search_input ->
+       let user = Eliom_reference.Volatile.get user_info in
+      Lwt.return
+        (Eliom_tools.F.html
+          ~title:"Search Item Listings"
+          ~css:[["css";"muz.css"]]
+          ~other_head:[bootstrap_cdn_link; font_awesome_cdn_link]
+          (body ~a:[a_class ["transparent"]]
+             [header_navbar_skeleton user;
+              h1 [pcdata ("You searched for = " ^ search_input)];
+             ]
+          )
+        )
+    )

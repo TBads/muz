@@ -64,7 +64,7 @@ let new_story_service =
 
 (* List New Item Service *)
 let list_new_item_service =
-  Eliom_service.Http.service ~path:["new_item"] ~get_params:Eliom_parameter.unit ()
+  Eliom_service.App.service ~path:["new_item"] ~get_params:Eliom_parameter.unit ()
 
 (* Action to write the new story to the db *)
 let new_story_action =
@@ -873,12 +873,103 @@ let () =
             )
            ])))
 
+(* TEST JS CODE *)
+{client{
+
+  open Dom
+  open Dom_html
+  open File
+
+  (* TODO: Restrict file size, restrict file type, *)
+  let on_drop_handler ?(border_radius = "") (d : divElement Js.t) =
+    handler (fun (mouse_event : dragEvent Js.t) ->
+        preventDefault mouse_event;
+        Firebug.console##log (mouse_event##dataTransfer##files);
+        let (pictures : fileList Js.t) = mouse_event##dataTransfer##files in
+        if pictures##length <> 1
+        then window##alert (Js.string "Please drop one file at a time!")
+        else (
+          let file_reader = jsnew fileReader () in
+          let img = createImg document in
+
+          file_reader##onload <- Dom.handler (fun (e : fileReader progressEvent Js.t) ->
+            let (g : Js.js_string Js.t Js.Opt.t) = CoerceTo.string file_reader##result in
+            let (s : Js.js_string Js.t) = Js.Opt.get g (fun () -> Js.string "Nothing Here...") in
+            img##src <- s;
+            img##style##borderRadius <- Js.string border_radius;
+            img##style##width <- Js.string "100%";
+            img##style##height <- Js.string "100%";
+            d##textContent <- Js.Opt.option None;
+            d##style##lineHeight <- Js.string "0px";
+            appendChild d img;
+            Js._true
+          );
+
+          let (pic_file_opt : File.file Js.t Js.Opt.t) = pictures##item(0) in
+          let (t : File.file Js.t option) = Js.Opt.to_option pic_file_opt in
+
+          let () =
+            match t with
+            | None -> Firebug.console##log(Js.string "No File found")
+            | Some x -> (
+                Firebug.console##log(Js.string "File found");
+                file_reader##readAsDataURL(x)
+              )
+          in
+
+          Firebug.console##log(Js.string "Made it to here 3");
+        );
+        Js._false
+      )
+
+  let on_drag_over_handler (d : divElement Js.t) =
+    handler (fun (mouse_event : dragEvent Js.t) ->
+        d##style##backgroundColor <- Js.string "yellow";
+        Js._false
+      )
+
+  let on_drag_leave_handler (d : divElement Js.t) =
+    handler (fun (mouse_event : dragEvent Js.t) ->
+        d##style##backgroundColor <- Js.string "transparent";
+        Js._false
+      )
+
+  let setup_hover_over () =
+    let main_pic_div = getElementById "main_pic_drop" in
+    let pic_div_1 = getElementById "pic_drop_div_1" in
+    let pic_div_2 = getElementById "pic_drop_div_2" in
+    let pic_div_3 = getElementById "pic_drop_div_3" in
+    let pic_div_4 = getElementById "pic_drop_div_4" in
+
+    main_pic_div##ondragover <- on_drag_over_handler  main_pic_div;
+    main_pic_div##ondragleave <- on_drag_leave_handler main_pic_div;
+    main_pic_div##ondrop <- on_drop_handler ~border_radius:"8px 0px 0px 8px" main_pic_div;
+
+    pic_div_1##ondragover <- on_drag_over_handler pic_div_1;
+    pic_div_1##ondragleave <- on_drag_leave_handler pic_div_1;
+    pic_div_1##ondrop <- on_drop_handler pic_div_1;
+
+    pic_div_2##ondragover <- on_drag_over_handler pic_div_2;
+    pic_div_2##ondragleave <- on_drag_leave_handler pic_div_2;
+    pic_div_2##ondrop <- on_drop_handler ~border_radius:"0px 8px 0px 0px" pic_div_2;
+
+    pic_div_3##ondragover <- on_drag_over_handler pic_div_3;
+    pic_div_3##ondragleave <- on_drag_leave_handler pic_div_3;
+    pic_div_3##ondrop <- on_drop_handler pic_div_3;
+
+    pic_div_4##ondragover <- on_drag_over_handler pic_div_4;
+    pic_div_4##ondragleave <- on_drag_leave_handler pic_div_4;
+    pic_div_4##ondrop <- on_drop_handler ~border_radius:"0px 0px 8px 0px" pic_div_4
+
+}}
+
 (* New Item Service *)
 let () =
-  Eliom_registration.Html5.register
+  Muz_app.register
     ~service:list_new_item_service
     (fun () () ->
       let user = Eliom_reference.Volatile.get user_info in
+      let _ = {unit{setup_hover_over ()}} in
       Lwt.return
         (Eliom_tools.F.html
           ~title:"List Item for Sale"
@@ -886,6 +977,19 @@ let () =
           ~other_head:[bootstrap_cdn_link; font_awesome_cdn_link]
           (body ~a:[a_class ["transparent"]]
            [header_navbar_skeleton ~on_page:`NewItem user;
+            div ~a:[a_id "pic_drop_area"]
+            [div ~a:[a_class ["main_pic_drop_div"]; a_id "main_pic_drop"] [pcdata "Main Picture"];
+             div ~a:[a_id "vertical_pic_div"]
+             [div ~a:[a_id "horizontal_pic_div"]
+              [div ~a:[a_id "pic_drop_div_1"; a_class ["pic_drop_div"]] [pcdata "1"];
+               div ~a:[a_id "pic_drop_div_2"; a_class ["pic_drop_div"]] [pcdata "2"];
+              ];
+              div ~a:[a_id "horizontal_pic_div"]
+              [div ~a:[a_id "pic_drop_div_3"; a_class ["pic_drop_div"]] [pcdata "3"];
+               div ~a:[a_id "pic_drop_div_4"; a_class ["pic_drop_div"]] [pcdata "4"];
+              ]
+             ];
+            ];
             new_item_form ()
            ]
           )
@@ -912,45 +1016,13 @@ let save_pic pic pic_path =
   >> save_thumbnail pic_path
   |> fun _ -> Lwt.return_unit
 
-(* Write the new story to the database *)
-let () =
-  Eliom_registration.Action.register
-  ~options:`Reload
-  ~service:new_story_action
-  (fun () (title, (pic, hashtags)) ->
-    ignore {unit{Dom_html.window##alert (Js.string "Test")}};
-    (* TODO: Give success/fail message for the contact message *)
-    (****** TODO: Why do these popups not work?!?! ******)
-     (*lwt () = Lwt_unix.sleep 3.0 in*) (* Throttle *)
-     (* TODO: Do a length check for the title also *)
-     (* TODO: Users can currently submit a new story without being logged in *)
-    let user = Eliom_reference.Volatile.get user_info in
-    let pp =
-      match pic with
-      | Some _ -> pic_path user
-      | _ -> ""
-    in
-    lwt () =
-      match user.username, user.verified, pic with
-        | Some un, Some true, Some p -> save_pic p pp
-        | _ -> Lwt.return ()
-    in
-    ignore {unit{Dom_html.window##alert (Js.string "Thanks for the submission!")}};
-    let pl = match pic with
-      | Some p -> Some pp
-      | _ -> None
-    in
-    Db_funs.write_new_story user ~title ~body:"NullAndVoid" ~pic_link:pl ~hashtags
-  )
-
 (* Write the new item to the database *)
 let () =
   Eliom_registration.Action.register
   ~options:`Reload
   ~service:new_item_action
   (fun () (listing_title, (picture, item_description)) ->
-    ignore {unit{Dom_html.window##alert (Js.string "Test")}};
-     (* TODO: Do a length check for the title also *)
+    (* TODO: Do a length check for the title also *)
     let user = Eliom_reference.Volatile.get user_info in
     let pp =
       match picture with
@@ -962,7 +1034,6 @@ let () =
         | Some p -> save_pic p pp
         | _ -> Lwt.return ()
     in
-    ignore {unit{Dom_html.window##alert (Js.string "Thanks for the submission!")}};
     let pl = match picture with
       | Some p -> Some pp
       | _ -> None

@@ -297,6 +297,7 @@ a {
 
 #list_item_panel {
     border: 1px solid #634271;
+    background-color: whitesmoke !important;
     width: 1000px;
     margin: auto;
     margin-top: 25px;
@@ -311,6 +312,7 @@ a {
 
 #list_item_title {
     background-color: none;
+    text-align: center;
 }
 
 #list_item_body {
@@ -323,7 +325,7 @@ a {
 }
 
 #list_item_body_text {
-    height: 200px
+    height: 150px
 }
 
 #list_item_button_div {
@@ -360,12 +362,21 @@ a {
     margin: 8px -7px auto;
 }
 
+#pic_drop_header {
+    margin: 10px auto 0px;
+    width: 400px;
+    height: 25px;
+    text-align: center;
+}
+
 #pic_drop_area {
   border: 2px solid black;
-  margin: 100px auto auto auto;
+  margin: 10px auto 10px auto;
   border-radius: 10px 10px 10px 10px;
   width: 400px;
   height: 200px;
+  text-align: center;
+  line-height: 200px;
 }
 
 .main_pic_drop_div {
@@ -376,6 +387,17 @@ a {
     text-align: center;
     vertical-align: middle;
     line-height: 200px;
+}
+
+.main_pic_div {
+    border: 1px solid black;
+    border-radius: 10px;
+    width: 400px;
+    height: 200px;
+    text-align: center;
+    vertical-align: middle;
+    line-height: 200px;
+    margin: 10px auto 10px auto;
 }
 
 #vertical_pic_div {
@@ -418,4 +440,18 @@ a {
     border-top: 1px solid grey;
     border-left: 1px solid grey;
     border-radius: 0px 0px 10px 0px;
+}
+
+#test_drag_and_drop {
+    border: 1px solid red;
+    border-radius: 10px;
+    background: whitesmoke !important;
+    width: 400px;
+    height: 100px;
+    margin: auto;
+}
+
+#dropped_pic {
+    max-width: 100%;
+    max-height: 100%;
 }

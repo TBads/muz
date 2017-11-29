@@ -7,9 +7,6 @@
 
 open Db_funs
 
-(* TODO: Show number of thumbs up / down next to a story *)
-(* TODO: Need a way for users to edit their info after creating an account *)
-
 let user_info =
   Eliom_reference.Volatile.eref ~scope:Eliom_common.default_session_scope ~secure:true
     {username = None;
@@ -58,10 +55,6 @@ let login_verify_service =
 let logout_service =
   Eliom_service.Http.service ~path:["logout"] ~get_params:Eliom_parameter.unit ()
 
-(* New Story Service *)
-let new_story_service =
-  Eliom_service.Http.service ~path:["new_story"] ~get_params:Eliom_parameter.unit ()
-
 (* List New Item Service *)
 let list_new_item_service =
   Eliom_service.App.service ~path:["new_item"] ~get_params:Eliom_parameter.unit ()
@@ -72,12 +65,6 @@ let new_story_action =
                                                    (opt (file "pic")) **
                                                    string "hashtags") ()
 
-(* Action to write the new item listing to the db *)
-let new_item_action =
-  Eliom_service.Http.post_coservice' ~post_params:(string "listing_title" **
-                                                   (opt (file "picturej")) **
-                                                   string "description") ()
-
 (* User page service *)
 let user_page_service =
   Eliom_service.Http.service ~path:["u"] ~get_params:(suffix (string "username")) ()
@@ -85,10 +72,6 @@ let user_page_service =
 (* Hashtag page service *)
 let hashtag_page_service =
   Eliom_service.Http.service ~path:["h"] ~get_params:(suffix (string "hashtag")) ()
-
-(* Service to display a single story *)
-let single_story_page_service =
-  Eliom_service.Http.service ~path:["s"] ~get_params:(suffix (string "story_id")) ()
 
 (* Service to display a single item for sale *)
 let single_item_page_service =
@@ -147,16 +130,6 @@ let login_logout_button (u : user) =
   match u.verified with
   | Some true -> logout_button
   | _ -> login_button
-
-let new_story_button (u : user) =
-  match u.verified with
-  | Some true ->
-    begin
-      div ~a:[a_class ["btn btn-default btn-lg"]; a_id "header_button"]
-      [a new_story_service [pcdata "Submit "] ()
-      ]
-    end
-  | _ -> div []
 
 let new_item_button =
   div ~a:[a_class ["btn btn-default btn-lg"]; a_id "header_button"]
@@ -218,42 +191,30 @@ let cat_or_photo so =
   | Some s -> s
   | None   -> "https://pbs.twimg.com/profile_images/664169149002874880/z1fmxo00.jpg"
 
-(* Image link a thumbnail to a single story page service *)
-let thumbnail_button (s : story) =
-  div ~a:[]
-  [a single_story_page_service
-   [img ~a:[a_style "border-radius: 10px; width: 180px; height: 180px"]
-     ~alt:(s.title)
-     ~src:(
-       match s.pic_link with
-       | Some pl ->
-         let thumb_pic_link =
-           (String.sub pl 0 (String.length pl - 4)) ^ "_thumbnail.jpg"
-         in
-         let path_list = split_string_on thumb_pic_link ~on:["/"] |> List.tl in
-          make_uri ~service:(Eliom_service.static_dir ()) path_list
-       | _ -> (Xml.uri_of_string (cat_or_photo None))
-     )
-     ()
-   ]
-   (string_of_int s.id)
-  ]
+let load_photo_lwt path =
+  let open Lwt_unix in
+  let open Lwt_io in
+  lwt in_chan = open_file ~flags:[O_RDONLY] ~perm:0o640 ~mode:input path in
+  let src = read in_chan in
+  close in_chan >>
+  src
+
+let load_photo path =
+  let open UnixLabels in
+  let in_chan = open_in_gen [Open_rdonly] 0o640 path in
+  let src = input_line in_chan in (* NOTE: Should only be a single line saved *)
+  close_in in_chan;
+  src
 
 (* Image link a thumbnail to a single item for sale page service *)
-let thumbnail_button_2 (i : item) =
+let thumbnail_button (i : item) =
   div ~a:[]
   [a single_item_page_service
    [img ~a:[a_style "border-radius: 10px; width: 180px; height: 180px"]
      ~alt:(i.title)
      ~src:(
-       match i.pic_link with
-       | Some pl ->
-         let thumb_pic_link =
-           (String.sub pl 0 (String.length pl - 4)) ^ "_thumbnail.jpg"
-         in
-         let path_list = split_string_on thumb_pic_link ~on:["/"] |> List.tl in
-          make_uri ~service:(Eliom_service.static_dir ()) path_list
-       | _ -> (Xml.uri_of_string (cat_or_photo None))
+         let thumb_pic_link = "./static/user_pics/" ^ i.date_time ^ ".txt" in
+         Xml.uri_of_string @@ load_photo thumb_pic_link
      )
      ()
    ]
@@ -397,52 +358,195 @@ let new_story_form =
       ]
   )
 
-(* New Item Form *)
-let new_item_form =
-  Eliom_content.Html5.F.post_form ~service:new_item_action ~port:Config.port
-  (
-    fun (listing_title, (picture, item_description)) ->
-      [div ~a:[a_id "list_item_form_outer_div"]
-       [div ~a:[a_class ["panel panel-primary"]; a_id "list_item_panel"]
-        [div ~a:[a_class ["panel-heading"]; a_id "list_item_heading"]
-         [h3 ~a:[a_class ["panel-title"; "text-center"]; a_id "list_item_title"]
-          [pcdata "List an Item for Sale"]
-         ];
+(* Picture Drag and Drop *)
+let drag_drop_area =
+  div ~a:[a_id "pic_drop_area"]
+  [div ~a:[a_class ["main_pic_drop_div"]; a_id "main_pic_drop"] [pcdata "Main Picture"];
+   div ~a:[a_id "vertical_pic_div"]
+   [div ~a:[a_id "horizontal_pic_div"]
+    [div ~a:[a_id "pic_drop_div_1"; a_class ["pic_drop_div"]] [pcdata "1"];
+     div ~a:[a_id "pic_drop_div_2"; a_class ["pic_drop_div"]] [pcdata "2"];
+    ];
+    div ~a:[a_id "horizontal_pic_div"]
+    [div ~a:[a_id "pic_drop_div_3"; a_class ["pic_drop_div"]] [pcdata "3"];
+     div ~a:[a_id "pic_drop_div_4"; a_class ["pic_drop_div"]] [pcdata "4"];
+    ]
+   ];
+  ]
 
-         div ~a:[a_class ["panel-body"]; a_id "list_item_body"]
-         [textarea ~a:[a_class ["form-control"];
-                       a_placeholder "Listing Title"; a_id "list_item_title_text"]
-                   ~name:listing_title ()
-         ];
+(* Store the new item *)
+{shared{
 
-         div ~a:[a_class ["panel-body"]; a_id "list_item_body"]
-         [file_input ~a:[a_id "pic_input"] ~name:picture ()];
+  open Deriving_Json
+  type new_item_info_args = (string * string) deriving (Json)
 
-         div ~a:[a_class ["panel-body"]; a_id "list_item_body"]
-         [textarea ~a:[a_class ["form-control"];
-                       a_placeholder "Describe your item...";
-                       a_id "list_item_body_text"]
-                   ~name:item_description ()
-         ];
+}}
 
-         div ~a:[a_id "list_item_button_div"]
-         [button ~a:[a_class ["btn btn-lg btn-success btn-block"];
-                     a_id "list_item_submit_button"]
-                 ~button_type:`Submit [pcdata "Submit"]
-         ]
-        ]
-       ]
-      ]
-  )
+(* Store the new item title and description *)
+let store_new_item_info ((title : string), (body : string)) =
+  lwt write_time = Db_funs.write_new_item_info ~title ~body in
+  Lwt.return write_time
+
+let store_photo ((photo_update : string),  (pic_path : string)) =
+  let open Lwt_unix in
+  let open Lwt_io in
+  lwt out_chan =
+    open_file ~flags:[O_WRONLY; O_APPEND; O_CREAT] ~perm:0o640 ~mode:output pic_path
+  in
+  write out_chan photo_update >>
+  flush out_chan >>
+  close out_chan
+
+{server{
+
+  let store_new_item_info' = server_function Json.t<new_item_info_args> store_new_item_info
+  let store_photo' = server_function Json.t<new_item_info_args> store_photo
+
+}}
+
+{client{
+
+  open Dom
+  open Dom_html
+
+  (* Maximum size for a single string upload *)
+  let max_upload_size = 1_000
+
+  let drag_drop_area_js =
+    let pic_drop_area = createDiv document in
+    pic_drop_area##id <- Js.string "pic_drop_area";
+    pic_drop_area##textContent <- Js.some @@ Js.string "Main Picture";
+    pic_drop_area
+
+  (* Split the picure string into separate parts before it is passed to the server *)
+  (* this avoids the exception Ocsigen_lib_base.input_is_too_large *)
+  let rec buffered_string ?(acc = []) s =
+    match Bytes.length s > max_upload_size with
+    | false -> List.rev @@ s :: acc
+    | true ->
+      let hd = String.sub s 0 max_upload_size in
+      let remaining_string = String.sub s max_upload_size (String.length s - max_upload_size) in
+      buffered_string ~acc:(hd :: acc) remaining_string
+
+  let store_new_photo_js ~pic_name ~pic_string =
+    let sl = buffered_string pic_string in
+    let pic_path = "./static/user_pics/" ^ pic_name ^ ".txt" in
+    window##alert(Js.string ("Writing the picture to " ^ pic_path));
+    Lwt_list.map_s (fun s -> %store_photo' (s, pic_path)) sl
+
+  let new_item_form_js () =
+
+    let outer_div = createDiv document in
+    outer_div##id <- Js.string "list_item_form_outer_div";
+
+    let list_item_panel = createDiv document in
+    list_item_panel##className <- Js.string "panel panel-primary";
+    list_item_panel##id <- Js.string "list_item_panel";
+    appendChild outer_div list_item_panel;
+
+    let list_item_heading = createDiv document in
+    list_item_heading##className <- Js.string "panel-heading";
+    list_item_heading##id <- Js.string "list_item_heading";
+    appendChild list_item_panel list_item_heading;
+
+    let list_item_title = createH3 document in
+    list_item_title##className <- Js.string "panel-title";
+    list_item_title##id <- Js.string "list_item_title";
+    list_item_title##textContent <- Js.some @@ Js.string "List an Item for Sale";
+    appendChild list_item_heading list_item_title;
+
+    let list_item_body_div = createDiv document in
+    list_item_body_div##className <- Js.string "panel-body";
+    list_item_body_div##id <- Js.string "list_item_body";
+    appendChild list_item_panel list_item_body_div;
+    let text_area = createTextarea ~name:(Js.string "listing_title") document in
+    text_area##className <- Js.string "form-control";
+    text_area##id <- Js.string "list_item_title_text";
+    text_area##placeholder <- Js.string "Listing Title";
+    appendChild list_item_body_div text_area;
+
+    let pic_drop_header = createDiv document in
+    pic_drop_header##id <- Js.string "pic_drop_header";
+    pic_drop_header##textContent <- Js.some @@ Js.string "Drag and drop pictures";
+    appendChild list_item_body_div pic_drop_header;
+
+    appendChild list_item_body_div drag_drop_area_js;
+
+    let description_div = createDiv document in
+    description_div##className <- Js.string "panel-body";
+    description_div##id <- Js.string "list_item_body";
+    appendChild list_item_body_div description_div;
+
+    let description_text_area = createTextarea ~name:(Js.string "item_description") document in
+    description_text_area##className <- Js.string "form-control";
+    description_text_area##id <- Js.string "list_item_body_text";
+    description_text_area##placeholder <- Js.string "Describe your item...";
+    appendChild description_div description_text_area;
+
+    let button_div = createDiv document in
+    button_div##id <- Js.string "list_item_button_div";
+    appendChild list_item_body_div button_div;
+
+    let submit_button = createButton ~_type:(Js.string "Submit") document in
+    submit_button##className <- Js.string "btn btn-lg btn-success btn-block";
+    submit_button##id <- Js.string "list_item_submit_button";
+    submit_button##textContent <- Js.some @@ Js.string "Submit";
+    submit_button##onmousedown <- handler (fun (clk : mouseEvent Js.t) ->
+       if clk##button = 0
+       then (
+         let description =
+           let (text_area : Dom_html.textAreaElement Js.t Js.opt) =
+             Dom_html.CoerceTo.textarea (getElementById "list_item_body_text")
+           in
+           match Js.Opt.to_option text_area with
+           | None -> "No Description Found"
+           | Some e -> Js.to_string e##value
+         in
+         let title =
+           let (text_area : Dom_html.textAreaElement Js.t Js.opt) =
+             Dom_html.CoerceTo.textarea (getElementById "list_item_title_text")
+           in
+           match Js.Opt.to_option text_area with
+           | None -> "No title Found"
+           | Some e -> Js.to_string e##value
+         in
+         let pic_string =
+           try (
+             let dropped_pic = CoerceTo.img (getElementById "dropped_pic") in
+             match Js.Opt.to_option dropped_pic with
+             | None -> "No picture found"
+             | Some (p : Dom_html.imageElement Js.t) -> Js.to_string p##src
+           )
+           with _ -> "No picture found"
+         in
+         (* TODO: There is a max_length that pic_string can take, get around this. *)
+         (*let _ = %store_new_item' (title, pic_string, description) in*)
+         (* TODO: Get the file name, then use that to upload the file *)
+         let _ =
+           window##alert(Js.string "Finding the listing time..");
+           lwt (listing_time : string) = %store_new_item_info' (title, description) in
+           (* TODO pick back up here and use the listing time to store the image on the server *)
+           window##alert(Js.string("listing_time = " ^ listing_time));
+           store_new_photo_js ~pic_name:listing_time ~pic_string >>
+           Lwt.return_unit
+         in
+         Js._true
+       )
+       else Js._true
+     );
+    appendChild button_div submit_button;
+
+    appendChild document##body outer_div
+}}
+
 
 (* Header Navbar Skeleton *)
 let header_navbar_skeleton ?(on_page = `Null) (u : user) =
   let b0 = if on_page = `Main then [] else [main_page_button] in
   let b1 = if on_page = `NewAccount then [] else [new_account_button u] in
   let b2 = if on_page = `Login then [] else [login_logout_button u] in
-  let b3 = if on_page = `NewStory then [] else [new_story_button u] in
-  let b4 = if on_page = `UserHome then [] else [user_page_button u] in
-  let b5 = if on_page = `NewItem then [] else [new_item_button] in
+  let b3 = if on_page = `UserHome then [] else [user_page_button u] in
+  let b4 = if on_page = `NewItem then [] else [new_item_button] in
   let search_form =
     Eliom_content.Html5.F.post_form ~service:search_service ~port:Config.port
       (
@@ -461,15 +565,14 @@ let header_navbar_skeleton ?(on_page = `Null) (u : user) =
   let search_div = [search_form ()] in
   let btns =
     match on_page with
-    | `Main -> b1 @ b2 @ b3 @ b4 @ b5 @ search_div
-    | `NewAccount -> b0 @ b2 @ b3 @ b4 @ b5 @ search_div
-    | `Login -> b0 @ b1 @ b3 @ b4 @ b5 @ search_div
-    | `Logout -> b0 @ b1 @ b2 @ b3 @ b4 @ b5 @ search_div
-    | `NewStory -> b0 @ b1 @ b2 @ b4 @ b5 @ search_div
-    | `NewItem -> b0 @ b1 @ b2 @ b4 @ search_div
-    | `UserHome -> b0 @ b2 @ b3 @ b5 @ search_div
-    | `SingleStory -> b0 @ b1 @ b2 @ b3 @ b4 @ b5 @ search_div
-    | `Null -> b0 @ b1 @ b2 @ b3 @ b4 @ b5 @ search_div
+    | `Main -> b1 @ b2 @ b3 @ b4 @ search_div
+    | `NewAccount -> b0 @ b2 @ b3 @ b4 @ search_div
+    | `Login -> b0 @ b1 @ b3 @ b4 @ search_div
+    | `Logout -> b0 @ b1 @ b2 @ b3 @ b4 @ search_div
+    | `NewItem -> b0 @ b1 @ b2 @ b3 @ search_div
+    | `UserHome -> b0 @ b2 @ b4 @ search_div
+    | `SingleStory -> b0 @ b1 @ b2 @ b3 @ b4 @ search_div
+    | `Null -> b0 @ b1 @ b2 @ b3 @ b4 @ search_div
   in
   nav ~a:[a_class ["navbar navbar-fixed-top"]]
     [div ~a:[a_class ["container-fluid"]]
@@ -540,11 +643,8 @@ let html_of_item (u : user) (i : item) =
                     border-radius: 10px; box-shadow: 5px 5px 5px grey"]
      ~alt:"Cats are really cool"
      ~src:(
-       match i.pic_link with
-       | Some pl ->
-         let path_list = split_string_on pl ~on:["/"] |> List.tl in
-          make_uri ~service:(Eliom_service.static_dir ()) path_list
-       | _ -> (Xml.uri_of_string (cat_or_photo None))
+         let thumb_pic_link = "./static/user_pics/" ^ i.date_time ^ ".txt" in
+         Xml.uri_of_string @@ load_photo thumb_pic_link
      )
    ();
 
@@ -557,27 +657,16 @@ let html_of_item (u : user) (i : item) =
    [p ~a:[a_style "margin: 10px 10px 10px 10px; width: 100%; text-align: justify"]
     [pcdata i.body]
    ];
-
-   div ~a:[a_id "item_divider" ] []
   ]
 
 (* Turn a list of stories into html *)
 let html_of_stories (u : user) stories =
   List.map (html_of_story u) stories
 
-(* Turn a story into an html thumbnail *)
-let thumb_of_story (s : story) =
-  div ~a:[a_class ["thumbnail"]; a_id "main_pg_thumbnail"]
-  [thumbnail_button s]
-
 (* Turn an item into an html thumbnail *)
 let thumb_of_item (i : item) =
   div ~a:[a_class ["thumbnail"]; a_id "main_pg_thumbnail"]
-  [thumbnail_button_2 i]
-
-(* Turn a list of stories into a list of thumbnails *)
-let thumbs_of_stories stories =
-  List.map (thumb_of_story) stories
+  [thumbnail_button i]
 
 (* Turn a list of items into a list of thumbnails *)
 let thumbs_of_items items =
@@ -851,79 +940,96 @@ let () =
             ]
            ])))
 
-(* New Story Service *)
-let () =
-  Eliom_registration.Html5.register
-    ~service:new_story_service
-    (fun () () ->
-      let user = Eliom_reference.Volatile.get user_info in
-      Lwt.return
-        (Eliom_tools.F.html
-          ~title:"New Story"
-          ~css:[["css";"muz.css"]]
-          ~other_head:[bootstrap_cdn_link; font_awesome_cdn_link]
-          (body ~a:[a_class ["transparent"]]
-           [header_navbar_skeleton ~on_page:`NewStory user;
-            (
-              match user.verified with
-              | Some true -> new_story_form ()
-              | _ ->
-                  h1 ~a:[a_style "margin-top: 100px; text-align: center"]
-                  [pcdata "ERROR: You must be logged in to submit a new story."]
-            )
-           ])))
-
-(* TEST JS CODE *)
 {client{
 
   open Dom
   open Dom_html
   open File
 
+(* TODO:
+   (1) Setup the entire form with Js, user can drag and drop files
+   (2) Have a button that calls a server function to save the new item
+   (3) On Success, redirect with window.location = "www.success-page.com"
+   (4) On Failure, window.alert message to user to fix issues
+*)
+
+
   (* TODO: Restrict file size, restrict file type, *)
   let on_drop_handler ?(border_radius = "") (d : divElement Js.t) =
     handler (fun (mouse_event : dragEvent Js.t) ->
-        preventDefault mouse_event;
-        Firebug.console##log (mouse_event##dataTransfer##files);
-        let (pictures : fileList Js.t) = mouse_event##dataTransfer##files in
-        if pictures##length <> 1
-        then window##alert (Js.string "Please drop one file at a time!")
-        else (
-          let file_reader = jsnew fileReader () in
-          let img = createImg document in
+      preventDefault mouse_event;
+      let (pictures : fileList Js.t) = mouse_event##dataTransfer##files in
+      if pictures##length <> 1
+      then window##alert (Js.string "Please only drop one file!")
+      else (
+        let file_reader = jsnew fileReader () in
+        let img = createImg document in
 
-          file_reader##onload <- Dom.handler (fun (e : fileReader progressEvent Js.t) ->
-            let (g : Js.js_string Js.t Js.Opt.t) = CoerceTo.string file_reader##result in
-            let (s : Js.js_string Js.t) = Js.Opt.get g (fun () -> Js.string "Nothing Here...") in
-            img##src <- s;
-            img##style##borderRadius <- Js.string border_radius;
-            img##style##width <- Js.string "100%";
-            img##style##height <- Js.string "100%";
-            d##textContent <- Js.Opt.option None;
-            d##style##lineHeight <- Js.string "0px";
-            appendChild d img;
-            Js._true
-          );
-
-          let (pic_file_opt : File.file Js.t Js.Opt.t) = pictures##item(0) in
-          let (t : File.file Js.t option) = Js.Opt.to_option pic_file_opt in
-
-          let () =
-            match t with
-            | None -> Firebug.console##log(Js.string "No File found")
-            | Some x -> (
-                Firebug.console##log(Js.string "File found");
-                file_reader##readAsDataURL(x)
-              )
-          in
-
-          Firebug.console##log(Js.string "Made it to here 3");
+        file_reader##onload <- Dom.handler (fun (e : fileReader progressEvent Js.t) ->
+          let (g : Js.js_string Js.t Js.Opt.t) = CoerceTo.string file_reader##result in
+          let (s : Js.js_string Js.t) = Js.Opt.get g (fun () -> Js.string "Nothing Here...") in
+          img##src <- s;
+          img##style##borderRadius <- Js.string border_radius;
+          img##id <- Js.string"dropped_pic";
+          d##textContent <- Js.Opt.option None;
+          d##style##lineHeight <- Js.string "0px";
+          d##style##backgroundColor <- Js.string "transparent";
+          d##style##border <- Js.string "none";
+          appendChild d img;
+          Js._true
         );
-        Js._false
-      )
+
+        let (pic_file_opt : File.file Js.t Js.Opt.t) = pictures##item(0) in
+        let (t : File.file Js.t option) = Js.Opt.to_option pic_file_opt in
+
+        match t with
+        | None -> window##alert (Js.string "No file found")
+        | Some x -> file_reader##readAsDataURL(x);
+
+      );
+      Js._false
+    )
+
+  (* TODO: Try setting up a new form using Js only,
+     then when submit is clicked call the new item action *)
+
+  (* User drops a picture on the div, which is then assigned to the file <input> *)
+  let on_drop_handler_2 ?(border_radius = "") (file_input : Dom_html.element Js.t) =
+    handler (fun (mouse_event : dragEvent Js.t) ->
+      preventDefault mouse_event;
+      let (pictures : fileList Js.t) = mouse_event##dataTransfer##files in
+      if pictures##length <> 1
+      then window##alert (Js.string "Please drop one file at a time!")
+      else (
+        let file_reader = jsnew fileReader () in
+        let (pic_file_opt : File.file Js.t Js.Opt.t) = pictures##item(0) in
+        let (dropped_file : File.file Js.t option) = Js.Opt.to_option pic_file_opt in
+
+        match dropped_file with
+        | None -> window##alert (Js.string "No file found")
+        | Some pic -> (
+          file_reader##readAsDataURL(pic);
+          let () =
+            match Dom_html.tagged file_input with
+            | Input i -> (
+                match dropped_file with
+                | None -> window##alert (Js.string "No dropped_file")
+                | Some f -> (
+                    Firebug.console##log(f);
+                    i##setAttribute(Js.string "value", f##name)
+                  )
+              )
+            | _ -> ()
+          in
+          ()
+        )
+      );
+      Js._false
+    )
 
   let on_drag_over_handler (d : divElement Js.t) =
     handler (fun (mouse_event : dragEvent Js.t) ->
+        preventDefault mouse_event;
         d##style##backgroundColor <- Js.string "yellow";
         Js._false
       )
@@ -935,31 +1041,10 @@ let () =
       )
 
   let setup_hover_over () =
-    let main_pic_div = getElementById "main_pic_drop" in
-    let pic_div_1 = getElementById "pic_drop_div_1" in
-    let pic_div_2 = getElementById "pic_drop_div_2" in
-    let pic_div_3 = getElementById "pic_drop_div_3" in
-    let pic_div_4 = getElementById "pic_drop_div_4" in
-
-    main_pic_div##ondragover <- on_drag_over_handler  main_pic_div;
+    let main_pic_div = getElementById "pic_drop_area" in
+    main_pic_div##ondragover  <- on_drag_over_handler main_pic_div;
     main_pic_div##ondragleave <- on_drag_leave_handler main_pic_div;
-    main_pic_div##ondrop <- on_drop_handler ~border_radius:"8px 0px 0px 8px" main_pic_div;
-
-    pic_div_1##ondragover <- on_drag_over_handler pic_div_1;
-    pic_div_1##ondragleave <- on_drag_leave_handler pic_div_1;
-    pic_div_1##ondrop <- on_drop_handler pic_div_1;
-
-    pic_div_2##ondragover <- on_drag_over_handler pic_div_2;
-    pic_div_2##ondragleave <- on_drag_leave_handler pic_div_2;
-    pic_div_2##ondrop <- on_drop_handler ~border_radius:"0px 8px 0px 0px" pic_div_2;
-
-    pic_div_3##ondragover <- on_drag_over_handler pic_div_3;
-    pic_div_3##ondragleave <- on_drag_leave_handler pic_div_3;
-    pic_div_3##ondrop <- on_drop_handler pic_div_3;
-
-    pic_div_4##ondragover <- on_drag_over_handler pic_div_4;
-    pic_div_4##ondragleave <- on_drag_leave_handler pic_div_4;
-    pic_div_4##ondrop <- on_drop_handler ~border_radius:"0px 0px 8px 0px" pic_div_4
+    main_pic_div##ondrop      <- on_drop_handler ~border_radius:"8px 8px 8px 8px" main_pic_div
 
 }}
 
@@ -969,6 +1054,7 @@ let () =
     ~service:list_new_item_service
     (fun () () ->
       let user = Eliom_reference.Volatile.get user_info in
+      let _ = {unit{new_item_form_js ()}} in
       let _ = {unit{setup_hover_over ()}} in
       Lwt.return
         (Eliom_tools.F.html
@@ -976,21 +1062,8 @@ let () =
           ~css:[["css";"muz.css"]]
           ~other_head:[bootstrap_cdn_link; font_awesome_cdn_link]
           (body ~a:[a_class ["transparent"]]
-           [header_navbar_skeleton ~on_page:`NewItem user;
-            div ~a:[a_id "pic_drop_area"]
-            [div ~a:[a_class ["main_pic_drop_div"]; a_id "main_pic_drop"] [pcdata "Main Picture"];
-             div ~a:[a_id "vertical_pic_div"]
-             [div ~a:[a_id "horizontal_pic_div"]
-              [div ~a:[a_id "pic_drop_div_1"; a_class ["pic_drop_div"]] [pcdata "1"];
-               div ~a:[a_id "pic_drop_div_2"; a_class ["pic_drop_div"]] [pcdata "2"];
-              ];
-              div ~a:[a_id "horizontal_pic_div"]
-              [div ~a:[a_id "pic_drop_div_3"; a_class ["pic_drop_div"]] [pcdata "3"];
-               div ~a:[a_id "pic_drop_div_4"; a_class ["pic_drop_div"]] [pcdata "4"];
-              ]
-             ];
-            ];
-            new_item_form ()
+           [header_navbar_skeleton ~on_page:`NewItem user
+            (*new_item_form ()*)
            ]
           )
         )
@@ -1015,33 +1088,6 @@ let save_pic pic pic_path =
   Lwt_unix.link (Eliom_request_info.get_tmp_filename pic) pic_path
   >> save_thumbnail pic_path
   |> fun _ -> Lwt.return_unit
-
-(* Write the new item to the database *)
-let () =
-  Eliom_registration.Action.register
-  ~options:`Reload
-  ~service:new_item_action
-  (fun () (listing_title, (picture, item_description)) ->
-    (* TODO: Do a length check for the title also *)
-    let user = Eliom_reference.Volatile.get user_info in
-    let pp =
-      match picture with
-      | Some _ -> pic_path user
-      | _ -> ""
-    in
-    lwt () =
-      match picture with
-        | Some p -> save_pic p pp
-        | _ -> Lwt.return ()
-    in
-    let pl = match picture with
-      | Some p -> Some pp
-      | _ -> None
-    in
-    (* TODO: Check that the user has put something in each field *)
-    (* TODO: Check that each field meets length requirements     *)
-    Db_funs.write_new_item ~title:listing_title ~body:"NullAndVoid" ~pic_link:pl
-  )
 
 (* User Page Service *)
 let () =
@@ -1087,47 +1133,6 @@ let () =
          )
     )
 
-(* Single Story Page Service *)
-let () =
-  Eliom_registration.Html5.register
-    ~service:single_story_page_service
-    (fun story_id () ->
-       let user = Eliom_reference.Volatile.get user_info in
-       lwt stry = get_story story_id in
-       let story_html, story_id, story_title =
-         match stry with
-         | Some s -> (html_of_story user s, string_of_int s.id, s.title)
-         | None ->
-           (h3 ~a:[a_style "text-align: center"] [pcdata "Story Not Found"], "", "Story Not Found")
-       in
-       Lwt.return
-         (Eliom_tools.F.html
-           ~title:("muz/story/" ^ story_id)
-           ~css:[["css"; "muz.css"]]
-           ~other_head:[bootstrap_cdn_link; font_awesome_cdn_link]
-           (body ~a:[a_class ["transparent"]]
-            [header_navbar_skeleton ~on_page:`SingleStory user;
-             h1 ~a:[a_style "margin-top: 100px; text-align: center"]
-             [pcdata ("story = " ^ story_title)];
-
-             (* LEFT BANNER DIV*)
-             div ~a:[a_id "left_banner"]
-             [left_banner
-                ~alt:"Charity Water"
-                "http://charitywater.org/whywater"
-                "//d11sa1anfvm2xk.cloudfront.net/media/banners/1_jerry.jpg";
-             ];
-
-             (* CENTER CONTENT DIV *)
-             div ~a:[a_id "center_content"] [story_html];
-
-             (* RIGHT BANNER DIV *)
-             div ~a:[a_id "right_banner"] []
-            ]
-           )
-         )
-    )
-
 (* Single Item Page Service *)
 let () =
   Eliom_registration.Html5.register
@@ -1146,7 +1151,7 @@ let () =
        in
        Lwt.return
          (Eliom_tools.F.html
-           ~title:("muz/item/" ^ item_id)
+           ~title:"muz"
            ~css:[["css"; "muz.css"]]
            ~other_head:[bootstrap_cdn_link; font_awesome_cdn_link]
            (body ~a:[a_class ["transparent"]]

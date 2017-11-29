@@ -229,21 +229,42 @@ let write_new_story (u : user) ~title ~body ~pic_link ~hashtags =
   Lwt.return @@ disconnect conn
 
 (* Write a new item to the database *)
-let write_new_item ~title ~body ~pic_link =
-  let now = string_of_int @@ int_of_float @@ Unix.time () in
+let write_new_item_info ~title ~body =
+  Lwt_io.print "\n\nwrite_new_item_info..." >>
+  let now_float = string_of_float @@ Unix.gettimeofday () in
+  let now = Str.global_replace (Str.regexp "[.]") "_" now_float in
   let conn = connect user_db in
   let esc s = Mysql.real_escape conn s in
   let sql_stmt =
-    "INSERT INTO muz.items_for_sale (title, body, pic_link, date_time)" ^
+    "INSERT INTO muz.items_for_sale (title, body, date_time)" ^
     " VALUES ('" ^
     (esc title) ^ "', '" ^
     (esc body) ^ "', '" ^
-    (esc @@ string_of_option pic_link) ^ "', '" ^
     (esc now) ^ "')"
   in
-  print_string ("sql_stmt = " ^ sql_stmt);
+  Lwt_io.print ("sql_stmt = " ^ sql_stmt) >>
+  let _ = exec conn sql_stmt in
+  disconnect conn;
+  Lwt.return now
+
+(* Update the value of the image *)
+let update_img ~update ~date_time =
+  let conn = connect user_db in
+  let esc s = Mysql.real_escape conn s in
+  let sql_stmt =
+    "UPDATE muz.items_for_sale " ^
+    "SET pic_link = CONCAT(pic_link, " ^ update ^ ") " ^
+    "WHERE date_time = " ^ date_time
+  in
+  Lwt_io.print ("sql_stmt = " ^ sql_stmt) >>
   let _ = exec conn sql_stmt in
   Lwt.return @@ disconnect conn
+
+  (* UPDATE muz.items_for_sale
+     SET pic_link = CONCAT(pic_link, "_and_additional_info")
+     WHERE date_time = '1511900091.08'
+  *)
+
 
 (* Get the most recent story from the database *)
 let get_newest_story () =

@@ -228,9 +228,22 @@ let write_new_story (u : user) ~title ~body ~pic_link ~hashtags =
   let _ = exec conn sql_stmt in
   Lwt.return @@ disconnect conn
 
+let item_id ~conn ~title ~body ~date_time =
+  let esc s = Mysql.real_escape conn s in
+  let sql_stmt =
+    "SELECT item_id FROM muz.items_for_sale " ^
+    "WHERE title = \"" ^ (esc title) ^ "\" " ^
+    "AND body = \"" ^ (esc body) ^ "\" " ^
+    "AND date_time = \"" ^ (esc date_time) ^ "\" "
+  in
+  let res = exec conn sql_stmt in
+  try
+    sll_of_res res |> List.hd |> List.hd
+  with
+    Failure "hd" -> ""
+
 (* Write a new item to the database *)
 let write_new_item_info ~title ~body =
-  Lwt_io.print "\n\nwrite_new_item_info..." >>
   let now_float = string_of_float @@ Unix.gettimeofday () in
   let now = Str.global_replace (Str.regexp "[.]") "_" now_float in
   let conn = connect user_db in
@@ -242,13 +255,13 @@ let write_new_item_info ~title ~body =
     (esc body) ^ "', '" ^
     (esc now) ^ "')"
   in
-  Lwt_io.print ("sql_stmt = " ^ sql_stmt) >>
   let _ = exec conn sql_stmt in
+  let id = item_id ~conn ~title ~body ~date_time:now in
   disconnect conn;
-  Lwt.return now
+  Lwt.return (now, id)
 
 (* Update the value of the image *)
-let update_img ~update ~date_time =
+(*let update_img ~update ~date_time =
   let conn = connect user_db in
   let esc s = Mysql.real_escape conn s in
   let sql_stmt =
@@ -259,12 +272,7 @@ let update_img ~update ~date_time =
   Lwt_io.print ("sql_stmt = " ^ sql_stmt) >>
   let _ = exec conn sql_stmt in
   Lwt.return @@ disconnect conn
-
-  (* UPDATE muz.items_for_sale
-     SET pic_link = CONCAT(pic_link, "_and_additional_info")
-     WHERE date_time = '1511900091.08'
-  *)
-
+*)
 
 (* Get the most recent story from the database *)
 let get_newest_story () =

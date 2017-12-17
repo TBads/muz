@@ -59,12 +59,6 @@ let logout_service =
 let list_new_item_service =
   Eliom_service.App.service ~path:["new_item"] ~get_params:Eliom_parameter.unit ()
 
-(* Action to write the new story to the db *)
-let new_story_action =
-  Eliom_service.Http.post_coservice' ~post_params:(string "title" **
-                                                   (opt (file "pic")) **
-                                                   string "hashtags") ()
-
 (* User page service *)
 let user_page_service =
   Eliom_service.Http.service ~path:["u"] ~get_params:(suffix (string "username")) ()
@@ -76,14 +70,6 @@ let hashtag_page_service =
 (* Service to display a single item for sale *)
 let single_item_page_service =
   Eliom_service.Http.service ~path:["item"] ~get_params:(suffix (string "item_id")) ()
-
-(* Form for uploading a picture *)
-let pic_form_service =
-  Eliom_service.Http.service ~path:["pic_upload"] ~get_params:Eliom_parameter.unit ()
-
-(* Service to save picture *)
-let pic_upload_service =
-  Eliom_service.Http.post_service ~fallback:main_service ~post_params:(file "pic") ()
 
 (* Service to search available item listings *)
 let search_service =
@@ -214,7 +200,10 @@ let thumbnail_button (i : item) =
      ~alt:(i.title)
      ~src:(
          let thumb_pic_link = "./static/user_pics/" ^ i.date_time ^ ".txt" in
-         Xml.uri_of_string @@ load_photo thumb_pic_link
+         try
+           Xml.uri_of_string @@ load_photo thumb_pic_link
+         with
+           _ -> (Xml.uri_of_string (cat_or_photo None))
      )
      ()
    ]
@@ -316,48 +305,6 @@ let login_form =
       ]
   )
 
-(* New Story form *)
-let new_story_form =
-  Eliom_content.Html5.F.post_form ~service:new_story_action ~port:Config.port
-  (
-    fun (title, (pic, hashtags)) ->
-      [div ~a:[a_style "margin: auto; margin-top: 75px; width: 800px"]
-       [div ~a:[a_class ["panel panel-primary"];
-                a_style "border: 1px solid #634271; width: 800px; margin: auto;
-                         margin-top: 25px; border-radius: 4px"]
-        [div ~a:[a_class ["panel-heading"];
-                 a_style "background-color: #634271; border: 1px solid #634271; border-radius: 0px"]
-         [h3 ~a:[a_class ["panel-title"; "text-center"]] [pcdata "Submit"]
-         ];
-
-         div ~a:[a_class ["panel-body"]; a_style "border-radius: 4px; background: whitesmoke"]
-         [textarea ~a:[a_class ["form-control"];
-                       a_placeholder "Title";
-                       a_style "height: 40px"]
-                   ~name:title ()
-         ];
-
-         div ~a:[a_class ["panel-body"]; a_style "border-radius: 4px; background: whitesmoke"]
-         [file_input ~a:[a_id "pic_input"] ~name:pic ()];
-
-         div ~a:[a_class ["panel-body"]; a_style "border-radius: 4px; background: whitesmoke"]
-         [textarea ~a:[a_class ["form-control"];
-                       a_placeholder "Hashtags";
-                       a_style "height: 40px"]
-                   ~name:hashtags ()
-         ];
-
-         div ~a:[a_style "background-color: whitesmoke; padding-bottom: 15px; border-radius: 4px"]
-         [button ~a:[a_class ["btn btn-lg btn-success btn-block"];
-                     a_style "width: 150px; margin: auto; background-color: #634271;
-                              border-color: #634271; font-size: 16px"]
-                 ~button_type:`Submit [pcdata "Submit"]
-         ]
-        ]
-       ]
-      ]
-  )
-
 (* Picture Drag and Drop *)
 let drag_drop_area =
   div ~a:[a_id "pic_drop_area"]
@@ -384,8 +331,8 @@ let drag_drop_area =
 
 (* Store the new item title and description *)
 let store_new_item_info ((title : string), (body : string)) =
-  lwt write_time = Db_funs.write_new_item_info ~title ~body in
-  Lwt.return write_time
+  lwt write_time, item_id = Db_funs.write_new_item_info ~title ~body in
+  Lwt.return (write_time, item_id)
 
 let store_photo ((photo_update : string),  (pic_path : string)) =
   let open Lwt_unix in
@@ -428,11 +375,33 @@ let store_photo ((photo_update : string),  (pic_path : string)) =
       let remaining_string = String.sub s max_upload_size (String.length s - max_upload_size) in
       buffered_string ~acc:(hd :: acc) remaining_string
 
-  let store_new_photo_js ~pic_name ~pic_string =
+  let store_new_photo_js ~pic_name ~pic_string ~item_id =
     let sl = buffered_string pic_string in
     let pic_path = "./static/user_pics/" ^ pic_name ^ ".txt" in
-    window##alert(Js.string ("Writing the picture to " ^ pic_path));
-    Lwt_list.map_s (fun s -> %store_photo' (s, pic_path)) sl
+    Lwt_list.map_s (fun s -> %store_photo' (s, pic_path)) sl >>
+
+    let div = createDiv document in
+    let msg_div = createDiv document in
+
+    div##id <- Js.string "save_confirm_modal";
+    div##className <- Js.string "modal";
+
+    msg_div##id <- Js.string "save_confirm_modal_msg";
+    msg_div##textContent <- Js.some @@ Js.string (
+        "Your item has successfully been stored at " ^
+        (Js.to_string window##location##hostname) ^ "/item/" ^ item_id
+    );
+
+    let close_btn = createButton document in
+    close_btn##className <- Js.string "btn btn-success";
+    close_btn##id <- Js.string "CloseSaveConfirmBtn";
+    close_btn##textContent <- Js.some @@ Js.string "OK";
+    close_btn##onmouseup <- handler (fun _ -> div##style##display <- Js.string "none"; Js._true);
+    appendChild div msg_div;
+    appendChild div close_btn;
+    appendChild document##body div;
+
+    Lwt.return_unit
 
   let new_item_form_js () =
 
@@ -519,17 +488,11 @@ let store_photo ((photo_update : string),  (pic_path : string)) =
            )
            with _ -> "No picture found"
          in
-         (* TODO: There is a max_length that pic_string can take, get around this. *)
-         (*let _ = %store_new_item' (title, pic_string, description) in*)
-         (* TODO: Get the file name, then use that to upload the file *)
          let _ =
-           window##alert(Js.string "Finding the listing time..");
-           lwt (listing_time : string) = %store_new_item_info' (title, description) in
-           (* TODO pick back up here and use the listing time to store the image on the server *)
-           window##alert(Js.string("listing_time = " ^ listing_time));
-           store_new_photo_js ~pic_name:listing_time ~pic_string >>
-           Lwt.return_unit
+           lwt (listing_time, item_id) = %store_new_item_info' (title, description) in
+           store_new_photo_js ~pic_name:listing_time ~pic_string ~item_id
          in
+         (*Dom_html.window##location##reload ();*)
          Js._true
        )
        else Js._true
@@ -594,12 +557,6 @@ let time_string f =
   let sec = string_of_int t.tm_sec in
   (month ^ "/" ^ day ^ "/" ^ year ^ "   " ^ hour ^ ":" ^ min ^ ":" ^ sec ^ " " ^ am_pm)
 
-(* Turn a csv string of hashtags into a list of links *)
-let hashtags_of_sl sl =
-  List.map
-    (hashtag_button ~extra_style:"float: left; margin: 10px 5px 10px 5px; background: transparent")
-    sl
-
 (* Turn a story into html *)
 let html_of_story (u : user) (s : story) =
   div
@@ -635,6 +592,7 @@ let html_of_story (u : user) (s : story) =
 
 (* Turn an item into html *)
 let html_of_item (u : user) (i : item) =
+  let date_time = Str.global_replace (Str.regexp "[_]") "." i.date_time in
   div ~a:[a_id "main_item_picture"]
   [h1 ~a:[a_style "margin: 40px auto; witdh: 800px; text-align: center"]
    [pcdata i.title];
@@ -643,15 +601,26 @@ let html_of_item (u : user) (i : item) =
                     border-radius: 10px; box-shadow: 5px 5px 5px grey"]
      ~alt:"Cats are really cool"
      ~src:(
-         let thumb_pic_link = "./static/user_pics/" ^ i.date_time ^ ".txt" in
+       let thumb_pic_link = "./static/user_pics/" ^ i.date_time ^ ".txt" in
+       try
          Xml.uri_of_string @@ load_photo thumb_pic_link
+       with
+       _ -> (Xml.uri_of_string (cat_or_photo None))
      )
    ();
 
    div ~a:[a_id "author_info"]
    [p ~a:[a_style "float: left; margin: 10px 10px 10px 10px; text-align: left"]
-    [pcdata (time_string @@ float_of_string @@ i.date_time)]
+    [pcdata (time_string @@ float_of_string @@ date_time)]
    ];
+
+   (* Not Needed for MVP *)
+   (*
+   div ~a:[a_id "buy_offer_div"]
+   [button ~button_type:`Button ~a:[a_id "buy_now_btn"] [pcdata "Buy Now"];
+    button ~button_type:`Button ~a:[a_id "make_offer_btn"] [pcdata "Make an Offer"]
+   ];
+   *)
 
    div ~a:[a_id "item"]
    [p ~a:[a_style "margin: 10px 10px 10px 10px; width: 100%; text-align: justify"]
@@ -682,19 +651,6 @@ let safe_string ~max_len s =
       | Invalid_argument "String.sub / Bytes.sub" -> "Whoops..."
       | _ -> "Uh Oh..."
     end
-
-(* Most popular hashtags of the last 24 hours - Limit to 10 max *)
-let most_pop_hashtags () =
-  lwt pop_htgs = Db_funs.get_recent_hashtags ~n:10 () in
-  match List.length pop_htgs with
-  | 0 -> Lwt.return []
-  | _ -> Lwt.return @@ List.map (fun s -> li [hashtag_button s]) pop_htgs
-
-let most_pop_hashtag_trs () =
-  lwt pop_htgs = Db_funs.get_recent_hashtags ~n:10 () in
-  match List.length pop_htgs with
-  | 0 -> Lwt.return []
-  | _ -> Lwt.return @@ List.map (fun s -> tr[td [hashtag_button s]]) pop_htgs
 
 let html_of_categories sl =
   ul ~a:[a_class ["nav nav-pills nav-stacked"];
@@ -1162,77 +1118,12 @@ let () =
          )
     )
 
-(* Picture upload form *)
-let pic_upload_form =
-  Eliom_content.Html5.F.post_form ~service:pic_upload_service ~port:Config.port
-    (
-      fun pic ->
-        [
-          div ~a:[a_id "pic_input_div"] [file_input ~a:[a_id "pic_input"] ~name:pic ()];
-
-          div ~a:[a_id ""]
-          [button ~a:[a_class ["btn btn-lg btn-success btn-block"];
-                      a_style "width: 150px; margin: auto; background-color: #634271;
-                               border-color: #634271; font-size: 16px"]
-                  ~button_type:`Submit [pcdata "Submit"]
-            ];
-        ]
-    )
-
-(* Pic Form Service *)
-let () =
-  Eliom_registration.Html5.register
-    ~service:pic_form_service
-    (fun () () ->
-      let user = Eliom_reference.Volatile.get user_info in
-      Lwt.return
-        (Eliom_tools.F.html
-          ~title:"Pic Form Service"
-          ~css:[["css";"muz.css"]]
-          ~other_head:[bootstrap_cdn_link; font_awesome_cdn_link]
-          (body ~a:[a_class ["transparent"]]
-           [header_navbar_skeleton user;
-            match user.verified with
-            | Some true ->
-              (
-                div ~a:[a_id "pic_upload_form"]
-                [div ~a:[a_id "pic_upload_header"]
-                 [h1 ~a:[a_id "pic_upload_text"] [pcdata "Upload a picture"]];
-                 div ~a:[a_id "pic_upload_body"] [pic_upload_form ()]
-                ]
-              )
-            | _ -> h1 ~a:[a_style "margin-top: 100px; text-align: center;"]
-                   [pcdata "Error: Must be logged in to upload photos!"]
-           ])))
-
-(* Pic Upload Service *)
-let () =
-  Eliom_registration.Html5.register
-    ~service:pic_upload_service
-    (fun () pic ->
-       let user = Eliom_reference.Volatile.get user_info in
-       let pp = pic_path user in
-       lwt () =
-         match user.username, user.verified with
-           | Some un, Some true -> save_pic pic pp
-           | _ -> Lwt.return ()
-       in
-      Lwt.return
-        (Eliom_tools.F.html
-          ~title:"Pic Upload Service"
-          ~css:[["css";"muz.css"]]
-          ~other_head:[bootstrap_cdn_link; font_awesome_cdn_link]
-          (body ~a:[a_class ["transparent"]]
-             [header_navbar_skeleton user;
-            h1 [pcdata ("Pic saved in: " ^ pp)];
-             ])))
-
 (* Listing Search Service *)
 let () =
   Eliom_registration.Html5.register
     ~service:search_service
     (fun () search_input ->
-       let user = Eliom_reference.Volatile.get user_info in
+      let user = Eliom_reference.Volatile.get user_info in
       Lwt.return
         (Eliom_tools.F.html
           ~title:"Search Item Listings"

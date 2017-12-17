@@ -455,3 +455,39 @@ a {
     max-width: 100%;
     max-height: 100%;
 }
+
+#buy_offer_div {
+    height: 40px;
+    width: 250px;
+    margin: auto;
+}
+
+#buy_now_btn {
+    float: left;
+}
+
+#make_offer_btn {
+    float: right;
+}
+
+#save_confirm_modal {
+    height: 265px;
+    width: 500px;
+    color: green;
+    border: 2px solid black;
+    display: block;
+    background-color: white;
+    z-index: 1;
+    position: fixed;
+    margin: auto;
+    border-radius: 5px;
+}
+
+#save_confirm_modal_msg {
+    text-align: center;
+}
+
+#CloseSaveConfirmBtn {
+    margin: auto;
+    display: block;
+}
